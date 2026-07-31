@@ -304,26 +304,49 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
     y += 3;
   }
 
-  /* ---- Política de cancelamento ---- */
-  if (config.politicaCancelamento) {
+  /* ---- Política de cancelamento ----
+     Quebra o texto em quantas folhas forem preciso: cada trecho recebe a
+     própria caixa, sem nunca passar do limite do rodapé da página. */
+  if (config.politicaCancelamento?.trim()) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    const linhas = doc.splitTextToSize(config.politicaCancelamento, W - 12) as string[];
-    const altura = 14 + linhas.length * 4.4;
-    if (y + altura > 275) {
-      doc.addPage();
-      y = 20;
+    const linhas = doc.splitTextToSize(config.politicaCancelamento.trim(), W - 12) as string[];
+    const LIMITE = 276; // rodapé começa em 285 mm
+    const ALT_LINHA = 4.4;
+    const TOPO_CAIXA = 14; // título + respiro antes da 1ª linha de texto
+
+    let i = 0;
+    let primeira = true;
+    while (i < linhas.length) {
+      const cabem = Math.floor((LIMITE - y - TOPO_CAIXA) / ALT_LINHA);
+      if (cabem < 3) {
+        // sem espaço mínimo na folha atual: começa em folha nova
+        doc.addPage();
+        y = 18;
+        continue;
+      }
+      const trecho = linhas.slice(i, i + cabem);
+      const altura = TOPO_CAIXA + trecho.length * ALT_LINHA;
+      doc.setFillColor(254, 242, 242);
+      doc.roundedRect(M, y, W, altura, 3, 3, "F");
+      doc.setFillColor(239, 68, 68);
+      doc.roundedRect(M, y, 1.6, altura, 1, 1, "F");
+      linhaTexto(
+        primeira ? "POLÍTICA DE CANCELAMENTO" : "POLÍTICA DE CANCELAMENTO (CONTINUAÇÃO)",
+        M + 6,
+        y + 8,
+        8.5,
+        "bold",
+        [185, 28, 28],
+      );
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(127, 29, 29);
+      trecho.forEach((t, j) => doc.text(t, M + 6, y + TOPO_CAIXA + j * ALT_LINHA));
+      i += trecho.length;
+      primeira = false;
+      y += altura + 8;
     }
-    doc.setFillColor(254, 242, 242);
-    doc.roundedRect(M, y, W, altura, 3, 3, "F");
-    doc.setFillColor(239, 68, 68);
-    doc.roundedRect(M, y, 1.6, altura, 1, 1, "F");
-    linhaTexto("POLÍTICA DE CANCELAMENTO", M + 6, y + 8, 8.5, "bold", [185, 28, 28]);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(127, 29, 29);
-    linhas.forEach((t, i) => doc.text(t, M + 6, y + 14 + i * 4.4));
-    y += altura + 8;
   }
 
   /* ---- Rodapé ---- */
