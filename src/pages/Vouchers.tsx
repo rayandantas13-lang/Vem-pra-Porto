@@ -197,8 +197,7 @@ export default function Vouchers() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Vouchers</h1>
           <p className="text-sm text-slate-500">
-            Crie o voucher, envie o PDF pelo WhatsApp (escolhendo o contato na hora) e salve no
-            Google Agenda.
+            Crie seu voucher!
           </p>
         </div>
         <Botao
