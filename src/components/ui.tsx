@@ -315,9 +315,9 @@ export function Modal({
       className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
       style={{
         WebkitOverflowScrolling: "touch",
-        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingTop: "max(0.75rem, env(safe-area-inset-top))",
         paddingRight: "max(0.75rem, env(safe-area-inset-right))",
-        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
         paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
       }}
     >
@@ -326,12 +326,12 @@ export function Modal({
         onClick={aoFechar}
         aria-hidden="true"
       />
-      <div className="relative flex min-h-full items-center justify-center">
+      <div className="relative flex min-h-full items-start justify-center py-2 sm:py-6">
         <div
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "anim-pop relative flex w-full max-w-full flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10",
-            "max-h-[calc(100dvh-2rem)] sm:max-h-[min(90dvh,42rem)]",
+            "anim-pop relative flex w-full max-w-full flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10",
+            "max-h-[calc(100dvh-2.5rem)] sm:max-h-[min(88dvh,42rem)]",
             largura,
           )}
         >
