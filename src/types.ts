@@ -65,8 +65,8 @@ export interface Config {
   cnpj: string;
   instagram: string;
   telefone: string;
-  /** Chamada que aparece no topo da mensagem do WhatsApp */
-  mensagemTopo: string;
+  /** Mensagem enviada junto com o PDF do voucher no WhatsApp. Atalhos: {saudacao}, {cliente}, {codigo}, {empresa} */
+  mensagemVoucher: string;
   politicaCancelamento: string;
   servicos: Servico[];
 }

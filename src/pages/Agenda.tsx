@@ -20,7 +20,11 @@ import {
   STATUS_META,
   totalPessoas,
 } from "@/lib/utils";
-import { linkEnviarWhatsApp, linkGoogleAgenda } from "@/lib/voucherDoc";
+import {
+  baixarEAbrirWhatsApp,
+  compartilharPDFVoucher,
+  linkGoogleAgenda,
+} from "@/lib/voucherDoc";
 import { cn } from "@/utils/cn";
 
 interface Evento {
@@ -29,12 +33,24 @@ interface Evento {
 }
 
 export default function Agenda({ ir }: { ir: (r: string) => void }) {
-  const { vouchers, config } = useStore();
+  const { vouchers, config, notificar } = useStore();
   const [visao, setVisao] = useState<"semana" | "lista">("semana");
   const [ancora, setAncora] = useState(() => startOfWeek(new Date()));
   const [busca, setBusca] = useState("");
   const [fStatus, setFStatus] = useState<"todos" | Voucher["status"]>("todos");
   const [aberto, setAberto] = useState<Evento | null>(null);
+
+  /** Envia o voucher pelo WhatsApp: anexa o PDF no celular; no PC baixa e abre o WhatsApp. */
+  const enviar = async (v: Voucher) => {
+    const r = await compartilharPDFVoucher(v, config);
+    if (r === "sem-suporte") {
+      baixarEAbrirWhatsApp(v, config);
+      notificar(
+        "PDF baixado. Escolha o contato no WhatsApp e anexe o arquivo que acabou de baixar.",
+        "info",
+      );
+    }
+  };
 
   const eventos = useMemo<Evento[]>(
     () =>
@@ -328,15 +344,14 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
                         titulo="Ver detalhes"
                         onClick={() => setAberto(e)}
                       />
-                      <a
-                        href={linkEnviarWhatsApp(e.v, config)}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Enviar no WhatsApp"
+                      <button
+                        type="button"
+                        title="Enviar PDF no WhatsApp (escolher contato)"
+                        onClick={() => enviar(e.v)}
                         className="inline-grid size-9 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
                       >
-                        <Icon name="phone" className="size-4" />
-                      </a>
+                        <Icon name="send" className="size-4" />
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -409,14 +424,9 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
             </div>
 
             <footer className="grid grid-cols-3 gap-2 border-t border-slate-100 p-4">
-              <a
-                href={linkEnviarWhatsApp(aberto.v, config)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700"
-              >
-                <Icon name="phone" className="size-4" /> WhatsApp
-              </a>
+              <Botao variante="sucesso" icone="send" onClick={() => enviar(aberto.v)} className="text-xs">
+                WhatsApp
+              </Botao>
               <a
                 href={linkGoogleAgenda(aberto.v, config)}
                 target="_blank"

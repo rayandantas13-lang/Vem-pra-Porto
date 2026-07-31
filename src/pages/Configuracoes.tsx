@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore } from "@/store";
-import type { Config, Servico, Usuario } from "@/types";
+import type { Config, Servico, Usuario, Voucher } from "@/types";
 import {
   api,
   definirUrlApi,
@@ -25,8 +25,34 @@ import {
   Selecao,
   Selo,
 } from "@/components/ui";
-import { brl, iniciais, mascaraTelefone, uid } from "@/lib/utils";
+import {
+  brl,
+  iniciais,
+  mascaraTelefone,
+  MENSAGEM_VOUCHER_PADRAO,
+  mensagemVoucher,
+  saudacaoDoDia,
+  uid,
+} from "@/lib/utils";
 import { cn } from "@/utils/cn";
+
+/** Voucher fictício usado na prévia da mensagem do WhatsApp. */
+const voucherExemplo: Voucher = {
+  id: "exemplo",
+  codigo: "VP-A1B2C",
+  clientes: ["Maria Silva", "João Silva"],
+  pessoas: 2,
+  hotel: "",
+  telefone: "",
+  contatoExtra: "",
+  passeios: [],
+  total: 0,
+  entrada: 0,
+  formaPagamento: "",
+  observacoes: "",
+  status: "confirmado",
+  criadoEm: new Date().toISOString(),
+};
 
 const usuarioVazio = {
   nome: "",
@@ -186,7 +212,8 @@ export default function Configuracoes() {
       <header>
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Configurações</h1>
         <p className="text-sm text-slate-500">
-          Dados da empresa, política de cancelamento, passeios, banco de dados e usuários.
+          Dados da empresa, mensagem do WhatsApp, política de cancelamento, passeios, banco de
+          dados e usuários.
         </p>
       </header>
 
@@ -226,17 +253,6 @@ export default function Configuracoes() {
                 onChange={(e) => set({ telefone: mascaraTelefone(e.target.value) })}
               />
             </Campo>
-            <Campo
-              rotulo="Chamada do topo da mensagem"
-              dica="use * para negrito"
-              className="sm:col-span-2"
-            >
-              <Entrada
-                value={form.mensagemTopo}
-                onChange={(e) => set({ mensagemTopo: e.target.value })}
-                placeholder="*Já nos segue no nosso Instagram*"
-              />
-            </Campo>
           </div>
           <div className="mt-4 flex justify-end">
             <Botao icone="check" onClick={() => salvarConfig(form)}>
@@ -268,6 +284,79 @@ export default function Configuracoes() {
           </div>
         </Cartao>
       </div>
+
+      {/* Mensagem do WhatsApp */}
+      <Cartao className="p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
+            <Icon name="send" className="size-4" />
+          </span>
+          <div>
+            <h2 className="font-bold text-slate-900">Mensagem do WhatsApp</h2>
+            <p className="text-xs text-slate-500">
+              Único texto enviado junto com o PDF do voucher — o WhatsApp abre para você escolher o
+              contato.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <AreaTexto
+              rows={5}
+              value={form.mensagemVoucher}
+              onChange={(e) => set({ mensagemVoucher: e.target.value })}
+              placeholder={MENSAGEM_VOUCHER_PADRAO}
+              className="resize-y text-sm"
+            />
+            <div className="mt-3 space-y-1.5 text-xs leading-relaxed text-slate-500">
+              <p>
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono">{"{saudacao}"}</code>{" "}
+                vira <b className="text-slate-700">{saudacaoDoDia()}</b> agora — muda sozinho
+                conforme o horário (Bom dia até 12h, Boa tarde até 18h, depois Boa noite).
+              </p>
+              <p>
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono">{"{cliente}"}</code>{" "}
+                nome da 1ª pessoa ·{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono">{"{codigo}"}</code>{" "}
+                código do voucher ·{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono">{"{empresa}"}</code>{" "}
+                nome da empresa.
+              </p>
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <Botao
+                variante="fantasma"
+                icone="refresh"
+                onClick={() => set({ mensagemVoucher: MENSAGEM_VOUCHER_PADRAO })}
+              >
+                Restaurar padrão
+              </Botao>
+              <Botao icone="check" onClick={() => salvarConfig(form)}>
+                Salvar mensagem
+              </Botao>
+            </div>
+          </div>
+
+          {/* Prévia */}
+          <div className="h-fit rounded-2xl bg-[#e5ddd5] p-4">
+            <p className="mb-2 text-[11px] font-bold tracking-wide text-slate-500 uppercase">
+              Prévia da mensagem agora
+            </p>
+            <div className="w-fit max-w-full rounded-xl rounded-tl-sm bg-white p-4 shadow-sm">
+              <pre className="font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-slate-800">
+                {mensagemVoucher(voucherExemplo, { ...config, mensagemVoucher: form.mensagemVoucher })}
+              </pre>
+              <p className="mt-2 text-right text-[10px] text-slate-400">✓✓</p>
+            </div>
+            <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500">
+              <Icon name="clip" className="mt-0.5 size-3.5 shrink-0" />
+              A mensagem vai acompanhada do PDF do voucher. No celular o PDF já vai anexado; no
+              computador ele é baixado e o WhatsApp abre para você anexar e escolher o contato.
+            </p>
+          </div>
+        </div>
+      </Cartao>
 
       {/* Passeios */}
       <Cartao className="p-5">

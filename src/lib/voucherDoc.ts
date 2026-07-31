@@ -5,10 +5,10 @@ import {
   brl,
   dataBR,
   datasPasseios,
-  linkWhatsApp,
+  linkAbrirWhatsApp,
+  mensagemVoucher,
   nomesClientes,
   nomesPasseios,
-  soDigitos,
   totalPessoas,
 } from "@/lib/utils";
 
@@ -82,76 +82,54 @@ export function linkGoogleAgenda(v: Voucher, config: Config) {
 }
 
 /* ============================================================
-   Mensagem do WhatsApp
+   Envio pelo WhatsApp (PDF + mensagem curta)
    ============================================================ */
 
-export function textoWhatsApp(v: Voucher, config: Config) {
-  const pessoas = totalPessoas(v);
-  const agenda = linkGoogleAgenda(v, config);
-  const linhas: string[] = [];
+/**
+ * Abre o menu de compartilhamento do celular já com o PDF do voucher anexado
+ * e a mensagem curta (saudação + texto das Configurações). Aí é só escolher
+ * o WhatsApp e o contato — sem número fixo.
+ *
+ * Retorna:
+ * - "compartilhado": o menu abriu e o envio foi concluído;
+ * - "cancelado": a pessoa fechou o menu (não fazer nada);
+ * - "sem-suporte": o navegador não consegue anexar arquivos (usar o plano B).
+ */
+export type ResultadoCompartilhamento = "compartilhado" | "cancelado" | "sem-suporte";
 
-  if (config.mensagemTopo) linhas.push(config.mensagemTopo);
-  if (config.instagram) linhas.push(config.instagram);
-  linhas.push("");
+export async function compartilharPDFVoucher(
+  v: Voucher,
+  config: Config,
+): Promise<ResultadoCompartilhamento> {
+  try {
+    const arquivo = arquivoPDFVoucher(v, config);
+    if (
+      typeof navigator === "undefined" ||
+      typeof navigator.canShare !== "function" ||
+      !navigator.canShare({ files: [arquivo] })
+    )
+      return "sem-suporte";
 
-  linhas.push(`🏢 ${config.empresa}`);
-  if (config.cnpj) linhas.push(`CNPJ: ${config.cnpj}`);
-  linhas.push("");
-
-  linhas.push("*Dados para voucher*");
-  linhas.push(`🎟️ Voucher: ${v.codigo}`);
-  linhas.push("");
-
-  linhas.push(`📌 Serviço Contratado: ${nomesPasseios(v)}`);
-  linhas.push("");
-  linhas.push(`👤 Cliente: ${nomesClientes(v)}`);
-  linhas.push(`( ${pessoas} pessoa${pessoas > 1 ? "s" : ""} )`);
-  if (v.hotel) linhas.push(`🏨 Hotel: ${v.hotel}`);
-  if (v.telefone) linhas.push(`📞 Telefone: ${v.telefone}`);
-  if (v.contatoExtra) linhas.push(v.contatoExtra);
-  linhas.push(`📅 Data dos Passeios: ${datasPasseios(v)}`);
-
-  const comHora = (v.passeios || []).filter((p) => p.hora);
-  if (comHora.length) {
-    comHora.forEach((p) =>
-      linhas.push(`   ⏰ ${p.nome} — ${dataBR(p.data)} às ${p.hora}${p.local ? ` (${p.local})` : ""}`),
-    );
+    await navigator.share({
+      files: [arquivo],
+      title: `Voucher ${v.codigo}`,
+      text: mensagemVoucher(v, config),
+    });
+    return "compartilhado";
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") return "cancelado";
+    return "sem-suporte";
   }
-
-  linhas.push("");
-  linhas.push("💳 Forma de Pagamento:");
-  if (v.formaPagamento) linhas.push(v.formaPagamento);
-  linhas.push(`Valor da entrada: ${brl(v.entrada)}`);
-  linhas.push(`Valor a receber: ${brl(aReceber(v))}`);
-  linhas.push(`Valor total: ${brl(v.total)}`);
-
-  if (v.observacoes) {
-    linhas.push("");
-    linhas.push(`📝 Observações: ${v.observacoes}`);
-  }
-
-  if (agenda) {
-    linhas.push("");
-    linhas.push("🗓️ Salve na sua agenda:");
-    linhas.push(agenda);
-  }
-
-  if (config.politicaCancelamento) {
-    linhas.push("");
-    linhas.push("");
-    linhas.push("🚨POLÍTICA DE CANCELAMENTO!");
-    linhas.push("");
-    linhas.push(config.politicaCancelamento);
-  }
-
-  return linhas.join("\n");
 }
 
-export function linkEnviarWhatsApp(v: Voucher, config: Config) {
-  return linkWhatsApp(v.telefone, textoWhatsApp(v, config));
+/**
+ * Plano B para computadores: baixa o PDF e abre o WhatsApp (sem número,
+ * com a mensagem pronta) para anexar o arquivo manualmente.
+ */
+export function baixarEAbrirWhatsApp(v: Voucher, config: Config) {
+  baixarPDFVoucher(v, config);
+  window.open(linkAbrirWhatsApp(mensagemVoucher(v, config)), "_blank", "noopener,noreferrer");
 }
-
-export const temWhatsApp = (v: Voucher) => soDigitos(v.telefone).length >= 10;
 
 /* ============================================================
    PDF
@@ -356,13 +334,23 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
   return doc;
 }
 
-export function baixarPDFVoucher(v: Voucher, config: Config) {
-  const nome = `voucher-${v.codigo}-${(nomesClientes(v) || "cliente")
+/** Nome do arquivo PDF do voucher: "voucher-VPA1B2C-maria.pdf" */
+export function nomeArquivoPDF(v: Voucher) {
+  return `voucher-${v.codigo}-${(nomesClientes(v) || "cliente")
     .split(" ")[0]
     .toLowerCase()
     .normalize("NFD")
     .replace(/[^a-z0-9]/gi, "")}.pdf`;
-  gerarPDFVoucher(v, config).save(nome);
+}
+
+/** O voucher em forma de arquivo (File), pronto para anexar/compartilhar. */
+export function arquivoPDFVoucher(v: Voucher, config: Config) {
+  const blob = gerarPDFVoucher(v, config).output("blob");
+  return new File([blob], nomeArquivoPDF(v), { type: "application/pdf" });
+}
+
+export function baixarPDFVoucher(v: Voucher, config: Config) {
+  gerarPDFVoucher(v, config).save(nomeArquivoPDF(v));
 }
 
 export function abrirPDFVoucher(v: Voucher, config: Config) {

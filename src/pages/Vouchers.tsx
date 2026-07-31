@@ -25,6 +25,7 @@ import {
   gerarHorarios,
   hoje,
   mascaraTelefone,
+  mensagemVoucher,
   nomesClientes,
   nomesPasseios,
   normalizar,
@@ -37,11 +38,11 @@ import {
   uid,
 } from "@/lib/utils";
 import {
+  baixarEAbrirWhatsApp,
   baixarPDFVoucher,
-  linkEnviarWhatsApp,
+  compartilharPDFVoucher,
   linkGoogleAgenda,
-  temWhatsApp,
-  textoWhatsApp,
+  nomeArquivoPDF,
 } from "@/lib/voucherDoc";
 import { cn } from "@/utils/cn";
 
@@ -72,6 +73,7 @@ export default function Vouchers() {
   const [erro, setErro] = useState("");
   const [excluir, setExcluir] = useState<Voucher | null>(null);
   const [previa, setPrevia] = useState<Voucher | null>(null);
+  const [enviando, setEnviando] = useState<string | null>(null);
 
   const lista = useMemo(() => {
     const q = normalizar(busca.trim());
@@ -157,12 +159,26 @@ export default function Vouchers() {
     setErro("");
   };
 
-  const copiarTexto = async (v: Voucher) => {
+  /**
+   * Envia o voucher pelo WhatsApp:
+   * - no celular, anexa o PDF e abre a lista de contatos;
+   * - no computador, baixa o PDF e abre o WhatsApp com a mensagem pronta.
+   * Sem número fixo: a escolha do contato é feita no próprio WhatsApp.
+   */
+  const enviar = async (v: Voucher) => {
+    if (enviando) return;
+    setEnviando(v.id);
     try {
-      await navigator.clipboard.writeText(textoWhatsApp(v, config));
-      notificar("Texto do voucher copiado.");
-    } catch {
-      notificar("Não foi possível copiar.", "erro");
+      const r = await compartilharPDFVoucher(v, config);
+      if (r === "sem-suporte") {
+        baixarEAbrirWhatsApp(v, config);
+        notificar(
+          "PDF baixado. Escolha o contato no WhatsApp e anexe o arquivo que acabou de baixar.",
+          "info",
+        );
+      }
+    } finally {
+      setEnviando(null);
     }
   };
 
@@ -181,7 +197,8 @@ export default function Vouchers() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Vouchers</h1>
           <p className="text-sm text-slate-500">
-            Crie o voucher, envie por WhatsApp e gere o PDF com link do Google Agenda.
+            Crie o voucher, envie o PDF pelo WhatsApp (escolhendo o contato na hora) e salve no
+            Google Agenda.
           </p>
         </div>
         <Botao
@@ -324,25 +341,15 @@ export default function Vouchers() {
 
                   <div className="mt-auto space-y-2 border-t border-slate-100 pt-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <a
-                        href={temWhatsApp(v) ? linkEnviarWhatsApp(v, config) : undefined}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => {
-                          if (!temWhatsApp(v)) {
-                            e.preventDefault();
-                            notificar("Informe o telefone do cliente no voucher.", "erro");
-                          }
-                        }}
-                        className={cn(
-                          "inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition",
-                          temWhatsApp(v)
-                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                            : "cursor-not-allowed bg-slate-100 text-slate-400",
-                        )}
+                      <button
+                        onClick={() => enviar(v)}
+                        disabled={enviando === v.id}
+                        title="Abre o compartilhamento com o PDF anexado para você escolher o contato"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60"
                       >
-                        <Icon name="phone" className="size-4" /> Enviar WhatsApp
-                      </a>
+                        <Icon name="send" className="size-4" />
+                        {enviando === v.id ? "Abrindo..." : "Enviar WhatsApp"}
+                      </button>
                       <button
                         onClick={() => baixar(v)}
                         className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-slate-800"
@@ -361,8 +368,11 @@ export default function Vouchers() {
                       >
                         <Icon name="calendar" className="size-4" />
                       </a>
-                      <BotaoIcone icone="copy" titulo="Copiar texto" onClick={() => copiarTexto(v)} />
-                      <BotaoIcone icone="eye" titulo="Pré-visualizar" onClick={() => setPrevia(v)} />
+                      <BotaoIcone
+                        icone="eye"
+                        titulo="Pré-visualizar envio"
+                        onClick={() => setPrevia(v)}
+                      />
                       <BotaoIcone
                         icone="edit"
                         titulo="Editar"
@@ -516,7 +526,7 @@ export default function Vouchers() {
                   placeholder="Paraíso Mar Hotel (Arraial)"
                 />
               </Campo>
-              <Campo rotulo="WhatsApp do cliente" dica="usado para enviar">
+              <Campo rotulo="WhatsApp do cliente" dica="vai impresso no PDF">
                 <Entrada
                   value={form.telefone}
                   onChange={(e) => set({ telefone: mascaraTelefone(e.target.value) })}
@@ -646,8 +656,8 @@ export default function Vouchers() {
             </Campo>
 
             <Aviso tom="info">
-              A política de cancelamento e os dados da empresa são adicionados automaticamente no
-              WhatsApp e no PDF. Edite em <b>Configurações</b>.
+              A política de cancelamento e os dados da empresa já entram automaticamente no PDF. A
+              mensagem enviada junto com o PDF no WhatsApp é editada em <b>Configurações</b>.
             </Aviso>
           </div>
         )}
@@ -657,45 +667,53 @@ export default function Vouchers() {
       <Modal
         aberto={!!previa}
         aoFechar={() => setPrevia(null)}
-        titulo="Prévia da mensagem"
-        subtitulo="Exatamente como o cliente vai receber no WhatsApp"
+        titulo="Prévia do envio"
+        subtitulo="O PDF vai anexado e a mensagem vai junto — você escolhe o contato no WhatsApp"
         largura="max-w-lg"
         rodape={
           previa ? (
             <>
-              <Botao variante="contorno" icone="copy" onClick={() => copiarTexto(previa)}>
-                Copiar texto
-              </Botao>
               <Botao variante="contorno" icone="download" onClick={() => baixar(previa)}>
                 Baixar PDF
               </Botao>
-              <a
-                href={temWhatsApp(previa) ? linkEnviarWhatsApp(previa, config) : undefined}
-                target="_blank"
-                rel="noreferrer"
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition",
-                  temWhatsApp(previa)
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "cursor-not-allowed bg-slate-100 text-slate-400",
-                )}
+              <Botao
+                variante="sucesso"
+                icone="send"
+                carregando={enviando === previa.id}
+                onClick={() => enviar(previa)}
               >
-                <Icon name="phone" className="size-4" /> Enviar
-              </a>
+                Enviar no WhatsApp
+              </Botao>
             </>
           ) : null
         }
       >
         {previa && (
-          <div className="rounded-2xl bg-[#e5ddd5] p-4">
-            <div className="rounded-xl rounded-tl-sm bg-white p-4 shadow-sm">
-              <pre className="font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-slate-800">
-                {textoWhatsApp(previa, config)}
-              </pre>
-              <p className="mt-2 text-right text-[10px] text-slate-400">
-                {dataBR(hoje())} ✓✓
-              </p>
+          <div className="space-y-2 rounded-2xl bg-[#e5ddd5] p-4">
+            {/* PDF anexado */}
+            <div className="mr-auto w-fit max-w-full rounded-xl rounded-tl-sm bg-white p-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-rose-600 text-[9px] font-black tracking-wide text-white">
+                  PDF
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold text-slate-800">
+                    {nomeArquivoPDF(previa)}
+                  </p>
+                  <p className="text-[10px] text-slate-400">documento anexado</p>
+                </div>
+              </div>
             </div>
+            {/* Mensagem */}
+            <div className="mr-auto w-fit max-w-full rounded-xl rounded-tl-sm bg-white p-4 shadow-sm">
+              <pre className="font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-slate-800">
+                {mensagemVoucher(previa, config)}
+              </pre>
+              <p className="mt-2 text-right text-[10px] text-slate-400">{dataBR(hoje())} ✓✓</p>
+            </div>
+            <p className="pt-1 text-center text-[11px] text-slate-500">
+              A mensagem é definida em <b>Configurações → Mensagem do WhatsApp</b>
+            </p>
           </div>
         )}
       </Modal>

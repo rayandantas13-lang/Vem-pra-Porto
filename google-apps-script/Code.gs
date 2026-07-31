@@ -19,7 +19,7 @@ var CONFIG_PADRAO = {
   cnpj: '',
   instagram: '@vempraporto.ps',
   telefone: '',
-  mensagemTopo: '*Já nos segue no nosso Instagram*',
+  mensagemVoucher: '{saudacao}! 🌴 Segue o seu voucher com todos os detalhes do passeio. Qualquer dúvida estamos à disposição. 😊',
   politicaCancelamento: 'Prezados(as),\n\nInformamos que cancelamentos realizados com até 18 horas de antecedência do horário do passeio estarão sujeitos à cobrança integral do valor do passeio.\n\nA exceção será apenas em casos de doença, mediante apresentação de atestado médico válido.\n\nAgradecemos pela compreensão e permanecemos à disposição.',
   servicos: JSON.stringify([
     { id: 's1', nome: 'Praia do Espelho + Caraíva', preco: 300 },
@@ -269,7 +269,7 @@ function lerConfig() {
     cnpj: CONFIG_PADRAO.cnpj,
     instagram: CONFIG_PADRAO.instagram,
     telefone: CONFIG_PADRAO.telefone,
-    mensagemTopo: CONFIG_PADRAO.mensagemTopo,
+    mensagemVoucher: CONFIG_PADRAO.mensagemVoucher,
     politicaCancelamento: CONFIG_PADRAO.politicaCancelamento,
     servicos: []
   };
@@ -286,7 +286,7 @@ function lerConfig() {
 
 function salvarConfig(config) {
   if (!config) throw new Error('Configuração inválida.');
-  ['empresa', 'cnpj', 'instagram', 'telefone', 'mensagemTopo', 'politicaCancelamento']
+  ['empresa', 'cnpj', 'instagram', 'telefone', 'mensagemVoucher', 'politicaCancelamento']
     .forEach(function (chave) {
       if (config[chave] !== undefined) {
         gravar('Config', { chave: chave, valor: String(config[chave]), atualizadoEm: agora() });
