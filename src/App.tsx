@@ -169,7 +169,7 @@ function Painel() {
             </button>
           </div>
           <p className="px-2 text-[11px] text-slate-500">
-            {local ? "Modo local · dados neste navegador" : "Conectado ao Google Sheets"}
+            {local ? "Local" : "On"}
           </p>
         </div>
       </aside>
@@ -233,7 +233,7 @@ function Painel() {
                   )}
                 />
               </span>
-              {local ? "Modo local" : "Sincronizado com Sheets"}
+              {local ? "Local" : "On"}
             </div>
 
             <div className="flex items-center gap-2 rounded-xl bg-white p-1.5 ring-1 ring-slate-200">
