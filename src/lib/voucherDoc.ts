@@ -197,6 +197,8 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
   doc.setFillColor(...CLARO);
   doc.roundedRect(M, y - 8, W, 20, 3, 3, "F");
   linhaTexto("SERVIÇO CONTRATADO", M + 5, y - 2, 7.5, "bold", CINZA);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
   const servico = doc.splitTextToSize(nomesPasseios(v) || "—", W - 10) as string[];
   linhaTexto(servico[0], M + 5, y + 6, 13, "bold", INDIGO);
   y += 22;
@@ -212,7 +214,9 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
 
   dados.forEach(([rot, val]) => {
     linhaTexto(rot.toUpperCase(), M, y, 7.5, "bold", CINZA);
-    const linhas = doc.splitTextToSize(val, W) as string[];
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    const linhas = doc.splitTextToSize(val, W - 4) as string[];
     linhaTexto(linhas[0], M, y + 6, 11, "bold");
     let extra = 0;
     linhas.slice(1, 3).forEach((t, i) => {
@@ -234,6 +238,8 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
       doc.setFillColor(...INDIGO);
       doc.circle(M + 1.5, y - 1.4, 1.4, "F");
       const txt = `${p.nome || "Passeio"} — ${dataBR(p.data)}${p.hora ? ` às ${p.hora}` : ""}${p.local ? ` · ${p.local}` : ""}`;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
       const linhas = doc.splitTextToSize(txt, W - 8) as string[];
       linhaTexto(linhas[0], M + 6, y, 10);
       y += 6;
@@ -287,9 +293,9 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
   if (v.observacoes) {
     linhaTexto("OBSERVAÇÕES", M, y, 7.5, "bold", CINZA);
     y += 5;
-    const linhas = doc.splitTextToSize(v.observacoes, W) as string[];
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
+    const linhas = doc.splitTextToSize(v.observacoes, W - 4) as string[];
     doc.setTextColor(...ESCURO);
     linhas.slice(0, 4).forEach((t) => {
       doc.text(t, M, y);
@@ -300,8 +306,10 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
 
   /* ---- Política de cancelamento ---- */
   if (config.politicaCancelamento) {
-    const linhas = doc.splitTextToSize(config.politicaCancelamento, W - 10) as string[];
-    const altura = 14 + linhas.length * 4.6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const linhas = doc.splitTextToSize(config.politicaCancelamento, W - 12) as string[];
+    const altura = 14 + linhas.length * 4.4;
     if (y + altura > 275) {
       doc.addPage();
       y = 20;
@@ -310,11 +318,11 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
     doc.roundedRect(M, y, W, altura, 3, 3, "F");
     doc.setFillColor(239, 68, 68);
     doc.roundedRect(M, y, 1.6, altura, 1, 1, "F");
-    linhaTexto("POLÍTICA DE CANCELAMENTO", M + 6, y + 8, 9, "bold", [185, 28, 28]);
+    linhaTexto("POLÍTICA DE CANCELAMENTO", M + 6, y + 8, 8.5, "bold", [185, 28, 28]);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(127, 29, 29);
-    linhas.forEach((t, i) => doc.text(t, M + 6, y + 14 + i * 4.6));
+    linhas.forEach((t, i) => doc.text(t, M + 6, y + 14 + i * 4.4));
     y += altura + 8;
   }
 
