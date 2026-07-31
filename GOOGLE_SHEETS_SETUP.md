@@ -1,15 +1,15 @@
 # Controle de Vouchers — como usar e publicar
 
-Sistema para quem fecha o serviço pelo WhatsApp: **não existe cadastro de cliente**. Você cria o voucher já com os nomes das pessoas, envia por WhatsApp, gera o PDF e o cliente salva os passeios no Google Agenda por um link.
+Sistema para quem fecha o serviço pelo WhatsApp: **não existe cadastro de cliente**. Você cria o voucher já com os nomes das pessoas, envia o **PDF por WhatsApp escolhendo o contato na hora** e o cliente salva os passeios no Google Agenda por um link.
 
 ## Telas
 
 | Tela | O que faz |
 | --- | --- |
 | **Início** | Passeios de hoje, pessoas atendidas, faturamento e valores a receber |
-| **Vouchers** | Criar, enviar por WhatsApp, gerar PDF, copiar texto, mudar status |
+| **Vouchers** | Criar, enviar o PDF por WhatsApp, baixar PDF, mudar status |
 | **Agenda** | Todos os passeios dos vouchers por dia e hora (semana ou lista) |
-| **Configurações** | Empresa, política de cancelamento, passeios, banco e usuários (só admin) |
+| **Configurações** | Empresa, mensagem do WhatsApp, política de cancelamento, passeios, banco e usuários (só admin) |
 
 ## Como funciona o voucher
 
@@ -22,45 +22,29 @@ Ao criar um voucher você informa:
 - **Valor total** e **entrada** — o "a receber" é calculado automaticamente
 - **Forma de pagamento** e **observações**
 
-A mensagem sai exatamente neste formato:
+O envio é sempre **PDF + mensagem curta**, sem número fixo: o WhatsApp abre e você escolhe para qual contato mandar.
 
-```text
-*Já nos segue no nosso Instagram*
-@vempraporto.ps
+- **No celular** — o PDF é gerado e anexado automaticamente; o menu de compartilhamento abre com a mensagem pronta. É só escolher o WhatsApp e o contato.
+- **No computador** — o PDF é baixado e o WhatsApp abre já com a mensagem; anexe o arquivo baixado e escolha o contato.
 
-🏢 Vem Pra Porto
-CNPJ: ...
+A mensagem é editável em **Configurações → Mensagem do WhatsApp** e aceita atalhos:
 
-*Dados para voucher*
-🎟️ Voucher: VP-A7K2M
+| Atalho | Vira |
+| --- | --- |
+| `{saudacao}` | **Bom dia** (5h–11h), **Boa tarde** (12h–17h) ou **Boa noite**, conforme o horário |
+| `{cliente}` | nome da primeira pessoa do voucher |
+| `{codigo}` | código do voucher (ex.: VP-A7K2M) |
+| `{empresa}` | nome da empresa |
 
-📌 Serviço Contratado: Praia do Espelho + Caraíva
+Padrão: `{saudacao}! 🌴 Segue o seu voucher com todos os detalhes do passeio. Qualquer dúvida estamos à disposição. 😊`
 
-👤 Cliente: Ronaldo Alves e Cida Lima
-( 2 pessoas )
-🏨 Hotel: Paraíso Mar Hotel (Arraial)
-📞 Telefone: (73) 99999-1111
-📅 Data dos Passeios: 29/07/2026
+Os botões de cada voucher:
 
-💳 Forma de Pagamento:
-Valor da entrada: R$ 100,00
-Valor a receber: R$ 200,00
-Valor total: R$ 300,00
-
-🗓️ Salve na sua agenda:
-https://calendar.google.com/...
-
-🚨POLÍTICA DE CANCELAMENTO!
-...
-```
-
-Os três botões de cada voucher:
-
-- **Enviar WhatsApp** — abre a conversa com o texto pronto
+- **Enviar WhatsApp** — PDF anexado + mensagem, escolhendo o contato no WhatsApp
 - **Baixar PDF** — arquivo com cabeçalho da empresa, dados, pagamento, link do Google Agenda clicável e a política de cancelamento
 - **Google Agenda** (ícone de calendário) — abre o evento pronto para salvar
 
-Também há **copiar texto** e **pré-visualizar** (mostra a mensagem como o cliente vai ver).
+Também há **pré-visualizar** (mostra o PDF anexado e a mensagem como o cliente vai receber).
 
 ## Acesso padrão
 

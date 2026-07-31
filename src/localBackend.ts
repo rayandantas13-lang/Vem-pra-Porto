@@ -68,7 +68,8 @@ function ler(): BancoLocal {
       gravar(novo);
       return novo;
     }
-    if (!p.config) p.config = CONFIG_PADRAO;
+    // mescla com o padrão para que campos novos (ex.: mensagemVoucher) existam em bancos antigos
+    p.config = { ...CONFIG_PADRAO, ...(p.config ?? {}) };
     if (!p.vouchers) p.vouchers = [];
     return p;
   } catch {

@@ -1,4 +1,4 @@
-import type { Passeio, StatusVoucher, Voucher } from "@/types";
+import type { Config, Passeio, StatusVoucher, Voucher } from "@/types";
 
 export const uid = () =>
   Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
@@ -96,7 +96,41 @@ export const mascaraTelefone = (v: string) => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
-export const soDigitos = (v: string) => (v || "").replace(/\D/g, "");
+/* ---------------- WhatsApp ---------------- */
+
+/** Saudação conforme o horário do dia: 5h–11h "Bom dia", 12h–17h "Boa tarde", senão "Boa noite". */
+export const saudacaoDoDia = (agora = new Date()) => {
+  const h = agora.getHours();
+  if (h >= 5 && h < 12) return "Bom dia";
+  if (h >= 12 && h < 18) return "Boa tarde";
+  return "Boa noite";
+};
+
+/** Modelo padrão da mensagem que acompanha o PDF do voucher no WhatsApp. */
+export const MENSAGEM_VOUCHER_PADRAO =
+  "{saudacao}! 🌴 Segue o seu voucher com todos os detalhes do passeio. Qualquer dúvida estamos à disposição. 😊";
+
+/**
+ * Monta a mensagem curta que vai junto com o PDF no WhatsApp.
+ * Atalhos aceitos no modelo: {saudacao}, {cliente}, {codigo} e {empresa}.
+ */
+export function mensagemVoucher(v: Voucher, config: Config) {
+  const modelo = (config.mensagemVoucher || "").trim() || MENSAGEM_VOUCHER_PADRAO;
+  const primeiro = (v.clientes || []).map((n) => n.trim()).filter(Boolean)[0] || "";
+  return modelo
+    .replace(/\{saudacao\}/g, saudacaoDoDia())
+    .replace(/\{cliente\}/g, primeiro)
+    .replace(/\{codigo\}/g, v.codigo || "")
+    .replace(/\{empresa\}/g, config.empresa || "")
+    .trim();
+}
+
+/**
+ * Link oficial do WhatsApp SEM número: abre o app/web já com o texto,
+ * para a pessoa escolher para qual contato enviar.
+ */
+export const linkAbrirWhatsApp = (texto = "") =>
+  `https://wa.me/${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
 
 export const iniciais = (nome: string) =>
   (nome || "?")
@@ -210,11 +244,7 @@ export const normalizar = (s: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-export const linkWhatsApp = (tel: string, msg = "") => {
-  const d = soDigitos(tel);
-  const numero = d ? (d.length > 11 ? d : `55${d}`) : "";
-  return `https://wa.me/${numero}${msg ? `?text=${encodeURIComponent(msg)}` : ""}`;
-};
+
 
 export const gerarHorarios = (inicio = "05:00", fim = "22:00") => {
   const toMin = (s: string) => {

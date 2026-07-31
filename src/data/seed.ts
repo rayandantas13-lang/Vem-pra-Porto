@@ -1,5 +1,5 @@
 import type { Config, Voucher } from "@/types";
-import { addDays, gerarCodigo, iso, uid } from "@/lib/utils";
+import { addDays, gerarCodigo, iso, MENSAGEM_VOUCHER_PADRAO, uid } from "@/lib/utils";
 
 const hj = new Date();
 const d = (n: number) => iso(addDays(hj, n));
@@ -9,7 +9,7 @@ export const CONFIG_PADRAO: Config = {
   cnpj: "",
   instagram: "@vempraporto.ps",
   telefone: "",
-  mensagemTopo: "*Já nos segue no nosso Instagram*👆🏼📸🥰",
+  mensagemVoucher: MENSAGEM_VOUCHER_PADRAO,
   politicaCancelamento:
     "Prezados(as),\n\nInformamos que cancelamentos realizados com até 18 horas de antecedência do horário do passeio estarão sujeitos à cobrança integral do valor do passeio.\n\nA exceção será apenas em casos de doença, mediante apresentação de atestado médico válido.\n\nAgradecemos pela compreensão e permanecemos à disposição.",
   servicos: [
