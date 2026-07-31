@@ -36,16 +36,41 @@ body {
   background-clip: content-box;
 }
 
+/*
+ * Altura máxima do painel do modal: declaração dupla para os navegadores
+ * antigos usarem `vh` e os modernos `dvh` (a segunda ganha quando existe).
+ */
+.modal-panel {
+  max-height: calc(100vh - 2.5rem);
+  max-height: calc(100dvh - 2.5rem);
+}
+@media (min-width: 640px) {
+  .modal-panel {
+    max-height: min(88vh, 46rem);
+    max-height: min(88dvh, 46rem);
+  }
+}
+
+/* Barra de rolagem do corpo do modal: sempre visível e com contraste,
+   para ficar claro que dá para descer até os botões do rodapé. */
 .modal-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: #94a3b8 #f1f5f9;
 }
 .modal-scroll::-webkit-scrollbar {
-  width: 7px;
+  width: 9px;
+}
+.modal-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 999px;
 }
 .modal-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #94a3b8;
   border-radius: 999px;
+  border: 2px solid #f1f5f9;
+}
+.modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
@@ -87,14 +112,19 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   }
 }
 
+/*
+ * `backwards` (e não `both`): depois que a animação termina, o elemento
+ * volta ao estilo natural, SEM manter `transform`. Um transform retido vira
+ * bloco de contenção para `position: fixed` e quebra modais/menus fixos.
+ */
 .anim-up {
-  animation: gp-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: gp-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 .anim-pop {
-  animation: gp-pop 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: gp-pop 0.24s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 .anim-slide {
-  animation: gp-slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: gp-slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .ticket-notch {

@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/utils/cn";
 import { Icon, type IconName } from "@/components/Icon";
 
@@ -307,7 +308,13 @@ export function Modal({
 
   if (!aberto) return null;
 
-  return (
+  /*
+   * O modal vai para o <body> via portal: assim o `position: fixed` fica
+   * sempre relativo à tela, mesmo se algum ancestral tiver transform
+   * (ex.: animações .anim-up), que antes deixava o rodapé fora da área
+   * visível sem como rolar até os botões.
+   */
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -330,29 +337,29 @@ export function Modal({
         <div
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "anim-pop relative flex w-full max-w-full flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10",
-            "max-h-[calc(100dvh-2.5rem)] sm:max-h-[min(88dvh,42rem)]",
+            "modal-panel anim-pop relative flex w-full max-w-full flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10",
             largura,
           )}
         >
-          <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
+          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
             <div>
               <h2 className="text-lg font-bold text-slate-900">{titulo}</h2>
               {subtitulo && <p className="mt-0.5 text-sm text-slate-500">{subtitulo}</p>}
             </div>
             <BotaoIcone icone="close" titulo="Fechar" onClick={aoFechar} />
           </header>
-          <div className="modal-scroll flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+          <div className="modal-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
             {children}
           </div>
           {rodape && (
-            <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+            <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-4 shadow-[0_-8px_16px_-12px_rgba(15,23,42,0.35)] sm:px-6">
               {rodape}
             </footer>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
