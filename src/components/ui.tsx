@@ -308,27 +308,49 @@ export function Modal({
   if (!aberto) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
-      <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={aoFechar} />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={titulo}
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
+      style={{
+        WebkitOverflowScrolling: "touch",
+        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingRight: "max(0.75rem, env(safe-area-inset-right))",
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
+      }}
+    >
       <div
-        className={cn(
-          "anim-pop relative flex max-h-[95vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl ring-1 ring-slate-900/10 sm:max-h-[92vh] sm:rounded-3xl",
-          largura,
-        )}
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">{titulo}</h2>
-            {subtitulo && <p className="mt-0.5 text-sm text-slate-500">{subtitulo}</p>}
+        className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm"
+        onClick={aoFechar}
+        aria-hidden="true"
+      />
+      <div className="relative flex min-h-full items-center justify-center">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "anim-pop relative flex w-full max-w-full flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10",
+            "max-h-[calc(100dvh-2rem)] sm:max-h-[min(90dvh,42rem)]",
+            largura,
+          )}
+        >
+          <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">{titulo}</h2>
+              {subtitulo && <p className="mt-0.5 text-sm text-slate-500">{subtitulo}</p>}
+            </div>
+            <BotaoIcone icone="close" titulo="Fechar" onClick={aoFechar} />
+          </header>
+          <div className="modal-scroll flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            {children}
           </div>
-          <BotaoIcone icone="close" titulo="Fechar" onClick={aoFechar} />
-        </header>
-        <div className="modal-scroll flex-1 overflow-y-auto overscroll-contain px-6 py-5">{children}</div>
-        {rodape && (
-          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4">
-            {rodape}
-          </footer>
-        )}
+          {rodape && (
+            <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+              {rodape}
+            </footer>
+          )}
+        </div>
       </div>
     </div>
   );
