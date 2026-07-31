@@ -128,7 +128,7 @@ export default function Vouchers() {
     if (!form) return;
     setPasseio(i, { nome });
     const s = config.servicos.find((x) => x.nome === nome);
-    if (s && !form.total) set({ total: s.preco * (form.pessoas || 1) });
+    if (s) set({ total: s.preco * (form.pessoas || 1) });
   };
 
   const addPasseio = () =>
