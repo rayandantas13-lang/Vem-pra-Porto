@@ -386,5 +386,5 @@ export function baixarPDFVoucher(v: Voucher, config: Config) {
 
 export function abrirPDFVoucher(v: Voucher, config: Config) {
   const url = gerarPDFVoucher(v, config).output("bloburl");
-  window.open(url, "_blank");
+  window.open(url, "_blank", "noopener,noreferrer");
 }

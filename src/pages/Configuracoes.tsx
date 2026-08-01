@@ -133,14 +133,19 @@ export default function Configuracoes() {
   };
 
   const salvarUrl = () => {
-    definirUrlApi(url);
-    setOrigem(origemApi());
-    setErroConexao("");
-    setMsgConexao(
-      url
-        ? "URL salva! Saia e entre novamente para carregar os dados do Google Sheets."
-        : "URL removida. O sistema volta a usar a variável do GitHub ou o modo local.",
-    );
+    try {
+      definirUrlApi(url);
+      setOrigem(origemApi());
+      setErroConexao("");
+      setMsgConexao(
+        url
+          ? "URL salva! Saia e entre novamente para carregar os dados do Google Sheets."
+          : "URL removida. O sistema volta a usar a variável do GitHub ou o modo local.",
+      );
+    } catch (e) {
+      setMsgConexao("");
+      setErroConexao(e instanceof Error ? e.message : "URL inválida.");
+    }
   };
 
   const migrar = async () => {
@@ -149,7 +154,10 @@ export default function Configuracoes() {
     setErroConexao("");
     try {
       const total = await migrarParaSheets(token, exportarBancoLocal());
-      setMsgConexao(`${total} voucher(s) enviados para o Google Sheets.`);
+      limparBancoLocal();
+      setMsgConexao(
+        `${total} voucher(s) enviados para o Google Sheets. A cópia local foi removida deste navegador.`,
+      );
       recarregar();
     } catch (e) {
       setErroConexao(e instanceof Error ? e.message : "Falha ao migrar os dados.");
@@ -160,8 +168,8 @@ export default function Configuracoes() {
 
   const criarUsuario = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formUsuario.senha.length < 6)
-      return setErroUsuario("A senha precisa ter pelo menos 6 caracteres.");
+    if (formUsuario.senha.length < 10)
+      return setErroUsuario("A senha precisa ter pelo menos 10 caracteres.");
     setSalvandoUsuario(true);
     setErroUsuario("");
     try {
@@ -623,11 +631,11 @@ export default function Configuracoes() {
               <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
                 google-apps-script/Code.gs
               </code>{" "}
-              em <b>Extensões → Apps Script</b> da planilha e execute{" "}
+              em <b>Extensões → Apps Script</b> da planilha. Execute{" "}
               <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
                 configurarBanco
-              </code>
-              .
+              </code>{" "}
+              e depois <code className="font-mono">obterChaveInstalacao</code>; guarde a chave exibida.
             </>,
             <>
               Publique em <b>Implantar → Nova implantação → Aplicativo da Web</b>, com acesso para{" "}
@@ -696,9 +704,10 @@ export default function Configuracoes() {
               <Entrada
                 required
                 type="password"
+                minLength={10}
                 value={formUsuario.senha}
                 onChange={(e) => setFormUsuario({ ...formUsuario, senha: e.target.value })}
-                placeholder="mínimo 6 caracteres"
+                placeholder="mínimo 10 caracteres"
                 autoComplete="new-password"
               />
             </Campo>

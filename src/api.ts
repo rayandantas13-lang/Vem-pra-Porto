@@ -9,15 +9,22 @@ interface RespostaApi<T = unknown> {
 
 const URL_KEY = "vempraporto.apps_script_url";
 
+function normalizarUrlAppsScript(valor: unknown) {
+  const v = typeof valor === "string" ? valor.trim().replace(/\/$/, "") : "";
+  return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(v) ? v : "";
+}
+
 /** URL vinda da variável do repositório GitHub (injetada no build pelo Vite). */
 export function urlDoAmbiente() {
-  const v = import.meta.env.VITE_APPS_SCRIPT_URL;
-  return typeof v === "string" ? v.trim().replace(/\/$/, "") : "";
+  return normalizarUrlAppsScript(import.meta.env.VITE_APPS_SCRIPT_URL);
 }
 
 /** URL salva manualmente pelo administrador neste navegador. */
 export function urlManual() {
-  return localStorage.getItem(URL_KEY) || "";
+  const salva = localStorage.getItem(URL_KEY) || "";
+  const segura = normalizarUrlAppsScript(salva);
+  if (salva && !segura) localStorage.removeItem(URL_KEY);
+  return segura;
 }
 
 /** URL efetiva: a manual tem prioridade sobre a variável do GitHub. */
@@ -26,9 +33,14 @@ export function urlApi() {
 }
 
 export function definirUrlApi(url: string) {
-  const v = url.trim().replace(/\/$/, "");
-  if (v) localStorage.setItem(URL_KEY, v);
-  else localStorage.removeItem(URL_KEY);
+  const informada = url.trim();
+  if (!informada) {
+    localStorage.removeItem(URL_KEY);
+    return;
+  }
+  const segura = normalizarUrlAppsScript(informada);
+  if (!segura) throw new Error("Use uma URL válida do Apps Script terminada em /exec.");
+  localStorage.setItem(URL_KEY, segura);
 }
 
 export type OrigemApi = "manual" | "github" | "local";
@@ -51,6 +63,9 @@ async function enviar<T>(url: string, payload: Record<string, unknown>): Promise
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload),
       redirect: "follow",
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
     });
   } catch {
     throw new Error(
@@ -79,18 +94,22 @@ async function req<T>(payload: Record<string, unknown>): Promise<T> {
 
 /** Testa uma URL sem salvá-la. */
 export async function testarUrl(url: string) {
-  const v = url.trim().replace(/\/$/, "");
-  if (!v) throw new Error("Informe a URL do Apps Script.");
-  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v))
-    throw new Error("A URL precisa ser do Apps Script e terminar com /exec.");
+  if (!url.trim()) throw new Error("Informe a URL do Apps Script.");
+  const v = normalizarUrlAppsScript(url);
+  if (!v) throw new Error("A URL precisa ser do Apps Script e terminar com /exec.");
   return enviar<{ temAdmin: boolean }>(v, { acao: "status" });
 }
 
 export const api = {
   status: () => req<{ temAdmin: boolean }>({ acao: "status" }),
   entrar: (usuario: string, senha: string) => req<Sessao>({ acao: "entrar", usuario, senha }),
-  criarPrimeiroAdmin: (p: { nome: string; email: string; usuario: string; senha: string }) =>
-    req<Sessao>({ acao: "criarPrimeiroAdmin", ...p }),
+  criarPrimeiroAdmin: (p: {
+    nome: string;
+    email: string;
+    usuario: string;
+    senha: string;
+    chaveInstalacao?: string;
+  }) => req<Sessao>({ acao: "criarPrimeiroAdmin", ...p }),
   eu: (token: string) => req<Usuario>({ acao: "eu", token }),
   sair: (token: string) => req<void>({ acao: "sair", token }),
 
