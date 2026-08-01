@@ -187,6 +187,28 @@ export const STATUS_LISTA: StatusVoucher[] = [
   "cancelado",
 ];
 
+/** Status aceitos atualmente (o "confirmado" de versões antigas foi removido). */
+const STATUS_VALIDOS = new Set<string>(STATUS_LISTA);
+
+/**
+ * Metadados visuais de um status SEM nunca derrubar a tela: se o valor vier
+ * desconhecido (ex.: "confirmado" gravado na planilha por versões antigas),
+ * mostra um selo neutro com o texto original em vez de lançar erro.
+ */
+export const statusMeta = (status: string) =>
+  STATUS_META[status as StatusVoucher] ?? {
+    label: status ? status.charAt(0).toUpperCase() + status.slice(1) : "Pendente",
+    chip: "bg-slate-100 text-slate-600 ring-slate-200",
+    dot: "bg-slate-400",
+  };
+
+/**
+ * Normaliza o status vindo do banco: valores que não existem mais
+ * (ex.: "confirmado") viram "pendente" para o app funcionar normalmente.
+ */
+export const normalizarStatus = (status: string): StatusVoucher =>
+  STATUS_VALIDOS.has(status) ? (status as StatusVoucher) : "pendente";
+
 /** Nomes dos clientes formatados: "A, B e C" */
 export const nomesClientes = (v: Voucher) => {
   const l = (v.clientes || []).map((n) => n.trim()).filter(Boolean);

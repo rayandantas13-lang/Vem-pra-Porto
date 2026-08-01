@@ -18,6 +18,7 @@ import {
   rotuloRelativo,
   startOfWeek,
   STATUS_META,
+  statusMeta,
   totalPessoas,
 } from "@/lib/utils";
 import {
@@ -333,9 +334,9 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
                       <p className="truncate font-mono text-[11px] text-slate-400">{e.v.codigo}</p>
                     </div>
                     <div>
-                      <Selo className={STATUS_META[e.v.status].chip}>
-                        <i className={cn("size-1.5 rounded-full", STATUS_META[e.v.status].dot)} />
-                        {STATUS_META[e.v.status].label}
+                      <Selo className={statusMeta(e.v.status).chip}>
+                        <i className={cn("size-1.5 rounded-full", statusMeta(e.v.status).dot)} />
+                        {statusMeta(e.v.status).label}
                       </Selo>
                     </div>
                     <div className="no-print flex justify-end gap-1">

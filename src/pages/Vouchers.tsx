@@ -34,6 +34,7 @@ import {
   rotuloRelativo,
   STATUS_LISTA,
   STATUS_META,
+  statusMeta,
   totalPessoas,
   uid,
 } from "@/lib/utils";
@@ -310,9 +311,9 @@ export default function Vouchers() {
 
                 <div className="flex flex-1 flex-col gap-3 px-5 pb-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Selo className={STATUS_META[v.status].chip}>
-                      <i className={cn("size-1.5 rounded-full", STATUS_META[v.status].dot)} />
-                      {STATUS_META[v.status].label}
+                    <Selo className={statusMeta(v.status).chip}>
+                      <i className={cn("size-1.5 rounded-full", statusMeta(v.status).dot)} />
+                      {statusMeta(v.status).label}
                     </Selo>
                     {data && (
                       <Selo className="bg-slate-100 text-slate-600 ring-slate-200">

@@ -29,6 +29,10 @@ var SEGURANCA = {
   maxRegistrosAuditoria: 5000
 };
 
+// Status aceitos pelo app. O 'confirmado' de versões antigas foi removido e é
+// tratado como 'pendente' para não quebrar vouchers já gravados na planilha.
+var STATUS_VALIDOS = ['pendente', 'concluido', 'cancelado'];
+
 var CONFIG_PADRAO = {
   empresa: 'Vem Pra Porto',
   cnpj: '',
@@ -380,7 +384,9 @@ function limparVoucher(v) {
   if (!passeios.length) throw new Error('Informe pelo menos um passeio.');
 
   var status = texto(v.status || 'pendente', 20, true, 'Status');
-  if (['pendente', 'concluido', 'cancelado'].indexOf(status) === -1)
+  // Clientes/abas antigas podem ainda enviar 'confirmado'; trata como pendente.
+  if (status === 'confirmado') status = 'pendente';
+  if (STATUS_VALIDOS.indexOf(status) === -1)
     throw new Error('Status inválido.');
 
   var codigo = texto(v.codigo, 30, true, 'Código').toUpperCase();
@@ -452,7 +458,9 @@ function lerVouchers() {
       entrada: Number(v.entrada || 0),
       formaPagamento: v.formaPagamento,
       observacoes: v.observacoes,
-      status: v.status || 'pendente',
+      // Nunca devolve um status desconhecido (ex.: 'confirmado' de versões
+      // antigas) para o app — isso derrubava a tela de Vouchers.
+      status: STATUS_VALIDOS.indexOf(v.status) !== -1 ? v.status : 'pendente',
       criadoEm: v.criadoEm
     };
   });

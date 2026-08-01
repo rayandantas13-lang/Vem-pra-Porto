@@ -10,7 +10,7 @@ import {
 import type { Config, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
 import { api, modoLocal } from "@/api";
 import { CONFIG_PADRAO } from "@/data/seed";
-import { uid } from "@/lib/utils";
+import { normalizarStatus, uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
 const TEMPO_OCIOSO_MS = 30 * 60 * 1000;
@@ -154,7 +154,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .dados(sessao.token)
       .then((d) => {
         if (cancelado) return;
-        setVouchers(d.vouchers ?? []);
+        // Status fora da lista (ex.: "confirmado" de versões antigas) é
+        // normalizado para "pendente" para a tela nunca quebrar.
+        setVouchers((d.vouchers ?? []).map((v) => ({ ...v, status: normalizarStatus(v.status) })));
         setConfig({ ...CONFIG_PADRAO, ...(d.config ?? {}) });
       })
       .catch((e: unknown) => {
