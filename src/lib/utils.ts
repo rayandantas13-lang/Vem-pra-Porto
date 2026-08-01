@@ -208,16 +208,20 @@ export const nomesPasseios = (v: Voucher) =>
     .filter(Boolean)
     .join(" + ");
 
-/** Datas dos passeios: "29/07/2026 e 30/07/2026" */
+/** Datas dos passeios: "29/07/2026 e 30/07/2026" (considera ida + volta) */
 export const datasPasseios = (v: Voucher) => {
-  const l = [...new Set((v.passeios || []).map((p) => p.data).filter(Boolean))].sort();
+  const datas = (v.passeios || [])
+    .flatMap((p) => [p.data, p.dataVolta].filter((d): d is string => !!d));
+  const l = [...new Set(datas)].sort();
   return l.map(dataBR).join(" e ");
 };
 
-/** Primeira data (usada para ordenação e agenda) */
+/** Primeira data (usada para ordenação e agenda) – prioriza ida */
 export const primeiraData = (v: Voucher) => {
-  const l = (v.passeios || []).map((p) => p.data).filter(Boolean).sort();
-  return l[0] || "";
+  const datas = (v.passeios || [])
+    .flatMap((p) => [p.data, p.dataVolta].filter((d): d is string => !!d))
+    .sort();
+  return datas[0] || "";
 };
 
 export const aReceber = (v: Voucher) =>
@@ -241,6 +245,8 @@ export const passeioVazio = (data = hoje()): Passeio => ({
   nome: "",
   data,
   hora: "",
+  dataVolta: "",
+  horaVolta: "",
   local: "",
 });
 

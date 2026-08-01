@@ -22,12 +22,17 @@ export interface Sessao {
 
 /* ---------------- Voucher ---------------- */
 
-/** Um passeio dentro do voucher (serviço + dia + hora). */
+/** Um passeio dentro do voucher (serviço + dia + hora).
+ * Suporta ida + volta (data/hora separadas). */
 export interface Passeio {
   id: ID;
   nome: string;
+  /** Data e hora de IDA (mantido para compatibilidade) */
   data: string;
   hora: string;
+  /** Data e hora de VOLTA (novo) */
+  dataVolta?: string;
+  horaVolta?: string;
   /** Ponto de encontro / observação do passeio */
   local: string;
 }
@@ -69,6 +74,13 @@ export interface Config {
   mensagemVoucher: string;
   politicaCancelamento: string;
   servicos: Servico[];
+
+  /** Textos configuráveis que aparecem no PDF (novo layout) */
+  incluso?: string;
+  naoIncluso?: string;
+  oQueLevar?: string;
+  pontoRetorno?: string;
+  informacoesAdicionais?: string;
 }
 
 export interface DadosApi {
