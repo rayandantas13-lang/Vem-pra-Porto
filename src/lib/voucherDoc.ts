@@ -46,11 +46,15 @@ export function linkGoogleAgenda(v: Voucher, config: Config) {
   const inicio = ordenados[0];
   const fim = ordenados[ordenados.length - 1];
 
+  // Use volta if available on last passeio for end time
+  const fimData = fim.dataVolta || fim.data;
+  const fimHora = fim.horaVolta || fim.hora || inicio.hora;
+
   let datas: string;
   if (inicio.hora) {
-    datas = `${carimbo(inicio.data, inicio.hora)}/${somarHoras(fim.data, fim.hora || inicio.hora, 8)}`;
+    datas = `${carimbo(inicio.data, inicio.hora)}/${somarHoras(fimData, fimHora, 8)}`;
   } else {
-    const [y, m, d] = fim.data.split("-").map(Number);
+    const [y, m, d] = fimData.split("-").map(Number);
     const seguinte = new Date(y, m - 1, d + 1);
     datas = `${inicio.data.replace(/-/g, "")}/${seguinte.getFullYear()}${zzz(seguinte.getMonth() + 1)}${zzz(seguinte.getDate())}`;
   }
@@ -60,7 +64,17 @@ export function linkGoogleAgenda(v: Voucher, config: Config) {
     `Cliente: ${nomesClientes(v)} (${totalPessoas(v)} pessoa${totalPessoas(v) > 1 ? "s" : ""})`,
     v.hotel ? `Hotel: ${v.hotel}` : "",
     ordenados
-      .map((p) => `• ${p.nome}${p.hora ? ` às ${p.hora}` : ""} — ${dataBR(p.data)}`)
+      .map((p) => {
+        let line = `• ${p.nome} — ${dataBR(p.data)}`;
+        if (p.hora) line += ` às ${p.hora} (ida)`;
+        if (p.dataVolta && p.dataVolta !== p.data) {
+          line += ` | Volta ${dataBR(p.dataVolta)}`;
+          if (p.horaVolta) line += ` às ${p.horaVolta}`;
+        } else if (p.horaVolta) {
+          line += ` | Volta às ${p.horaVolta}`;
+        }
+        return line;
+      })
       .join("\n"),
     "",
     `Total: ${brl(v.total)} | Entrada: ${brl(v.entrada)} | A receber: ${brl(aReceber(v))}`,
@@ -237,7 +251,15 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
     passeios.forEach((p) => {
       doc.setFillColor(...INDIGO);
       doc.circle(M + 1.5, y - 1.4, 1.4, "F");
-      const txt = `${p.nome || "Passeio"} — ${dataBR(p.data)}${p.hora ? ` às ${p.hora}` : ""}${p.local ? ` · ${p.local}` : ""}`;
+      let txt = `${p.nome || "Passeio"} — ${dataBR(p.data)}`;
+      if (p.hora) txt += ` às ${p.hora} (ida)`;
+      if (p.dataVolta && p.dataVolta !== p.data) {
+        txt += ` | Volta: ${dataBR(p.dataVolta)}`;
+        if (p.horaVolta) txt += ` às ${p.horaVolta}`;
+      } else if (p.horaVolta) {
+        txt += ` | Volta às ${p.horaVolta}`;
+      }
+      if (p.local) txt += ` · ${p.local}`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       const linhas = doc.splitTextToSize(txt, W - 8) as string[];
@@ -301,6 +323,57 @@ export function gerarPDFVoucher(v: Voucher, config: Config) {
       doc.text(t, M, y);
       y += 5;
     });
+    y += 3;
+  }
+
+  /* ============================================================
+     NOVAS SEÇÕES DO LAYOUT (Incluso / Não incluso / O que levar / Retorno)
+     Baseado no modelo que o usuário enviou
+  ============================================================ */
+  const addSection = (titulo: string, conteudo: string | undefined, corTitulo: [number,number,number] = CINZA) => {
+    if (!conteudo?.trim()) return;
+    const linhas = doc.splitTextToSize(conteudo.trim(), W - 10) as string[];
+    if (!linhas.length) return;
+
+    // pequena separação
+    y += 3;
+
+    linhaTexto(titulo, M, y, 8, "bold", corTitulo);
+    y += 5;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...ESCURO);
+
+    linhas.slice(0, 7).forEach((t) => {
+      doc.text(t, M + 2, y);
+      y += 4.5;
+    });
+    y += 4;
+  };
+
+  // Seções do modelo
+  addSection("INCLUSO NO PASSEIO", (config as any).incluso);
+  addSection("NÃO INCLUSO", (config as any).naoIncluso);
+  addSection("O QUE LEVAR", (config as any).oQueLevar);
+
+  if ((config as any).pontoRetorno || (config as any).informacoesAdicionais) {
+    y += 2;
+    linhaTexto("INFORMAÇÕES IMPORTANTES", M, y, 8, "bold", CINZA);
+    y += 5;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...ESCURO);
+
+    if ((config as any).pontoRetorno) {
+      const linhas = doc.splitTextToSize((config as any).pontoRetorno, W - 4) as string[];
+      linhas.slice(0, 3).forEach((t) => { doc.text(t, M, y); y += 4.5; });
+    }
+    if ((config as any).informacoesAdicionais) {
+      const linhas = doc.splitTextToSize((config as any).informacoesAdicionais, W - 4) as string[];
+      linhas.slice(0, 4).forEach((t) => { doc.text(t, M, y); y += 4.5; });
+    }
     y += 3;
   }
 

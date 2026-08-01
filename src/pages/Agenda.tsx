@@ -239,7 +239,7 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
                           <div className="flex items-center gap-1.5">
                             <Icon name="clock" className="size-3.5 text-slate-500" />
                             <span className="text-[11px] font-extrabold text-slate-700">
-                              {e.p.hora || "sem hora"}
+                              {e.p.hora ? `${e.p.hora} (ida)` : "sem hora"}{e.p.horaVolta ? ` · volta ${e.p.horaVolta}` : ""}
                             </span>
                             <span className="ml-auto text-[10px] font-bold text-slate-400">
                               {totalPessoas(e.v)} pax
@@ -317,7 +317,7 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
                     <div>
                       <p className="text-sm font-bold text-slate-900">{dataBR(e.p.data)}</p>
                       <p className="text-xs text-slate-400">
-                        {e.p.hora || "sem hora"} · {rotuloRelativo(e.p.data)}
+                        {e.p.hora ? `${e.p.hora} (ida)` : "sem hora"}{e.p.horaVolta ? ` · volta ${e.p.horaVolta}` : ""} · {rotuloRelativo(e.p.data)}
                       </p>
                     </div>
                     <div className="min-w-0">
@@ -371,8 +371,9 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
                 <p className="font-mono text-xs font-bold text-indigo-600">{aberto.v.codigo}</p>
                 <h2 className="truncate text-lg font-bold text-slate-900">{aberto.p.nome}</h2>
                 <p className="text-sm text-slate-500">
-                  {dataBR(aberto.p.data)}
-                  {aberto.p.hora ? ` às ${aberto.p.hora}` : ""}
+                  {dataBR(aberto.p.data)}{aberto.p.hora ? ` às ${aberto.p.hora} (ida)` : ""}
+                  {aberto.p.dataVolta && aberto.p.dataVolta !== aberto.p.data ? ` | Volta ${dataBR(aberto.p.dataVolta)}` : ""}
+                  {aberto.p.horaVolta ? ` às ${aberto.p.horaVolta}` : ""}
                 </p>
               </div>
               <BotaoIcone icone="close" titulo="Fechar" onClick={() => setAberto(null)} />

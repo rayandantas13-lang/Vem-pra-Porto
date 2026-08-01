@@ -556,7 +556,7 @@ export default function Vouchers() {
               <div className="space-y-3">
                 {form.passeios.map((p, i) => (
                   <div key={p.id} className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
-                    <div className="grid gap-2 sm:grid-cols-[2fr_1fr_0.8fr_auto]">
+                    <div className="grid gap-2 sm:grid-cols-[2fr_1fr_0.9fr_1fr_0.9fr_auto]">
                       <Campo rotulo={i === 0 ? "Serviço" : undefined}>
                         <Entrada
                           list="lista-servicos"
@@ -565,17 +565,37 @@ export default function Vouchers() {
                           placeholder="Praia do Espelho + Caraíva"
                         />
                       </Campo>
-                      <Campo rotulo={i === 0 ? "Data" : undefined}>
+                      <Campo rotulo={i === 0 ? "Data IDA" : undefined}>
                         <Entrada
                           type="date"
                           value={p.data}
                           onChange={(e) => setPasseio(i, { data: e.target.value })}
                         />
                       </Campo>
-                      <Campo rotulo={i === 0 ? "Hora" : undefined}>
+                      <Campo rotulo={i === 0 ? "Hora IDA" : undefined}>
                         <Selecao
                           value={p.hora}
                           onChange={(e) => setPasseio(i, { hora: e.target.value })}
+                        >
+                          <option value="">—</option>
+                          {HORARIOS.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </Selecao>
+                      </Campo>
+                      <Campo rotulo={i === 0 ? "Data VOLTA" : undefined}>
+                        <Entrada
+                          type="date"
+                          value={p.dataVolta || ""}
+                          onChange={(e) => setPasseio(i, { dataVolta: e.target.value || undefined })}
+                        />
+                      </Campo>
+                      <Campo rotulo={i === 0 ? "Hora VOLTA" : undefined}>
+                        <Selecao
+                          value={p.horaVolta || ""}
+                          onChange={(e) => setPasseio(i, { horaVolta: e.target.value || undefined })}
                         >
                           <option value="">—</option>
                           {HORARIOS.map((h) => (
