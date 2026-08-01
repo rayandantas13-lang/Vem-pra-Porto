@@ -13,12 +13,570 @@ import {
 } from "@/lib/utils";
 
 /* ============================================================
-   Link do Google Agenda
+   CORES
+   ============================================================ */
+const CORES = {
+  primaria: [79, 70, 229] as [number, number, number],
+  secundaria: [124, 58, 237] as [number, number, number],
+  escuro: [15, 23, 42] as [number, number, number],
+  cinza: [100, 116, 139] as [number, number, number],
+  cinzaClaro: [148, 163, 184] as [number, number, number],
+  fundo: [241, 245, 249] as [number, number, number],
+  branco: [255, 255, 255] as [number, number, number],
+  sucesso: [34, 197, 94] as [number, number, number],
+  destaque: [167, 139, 250] as [number, number, number],
+};
+
+/* ============================================================
+   UTILITÁRIOS PDF
+   ============================================================ */
+class PDFVoucherBuilder {
+  private doc: jsPDF;
+  private readonly L = 210; // Largura A4
+  private readonly M = 14; // Margem
+  private readonly W: number;
+  private y = 0;
+
+  constructor() {
+    this.doc = new jsPDF({ unit: "mm", format: "a4" });
+    this.W = this.L - this.M * 2;
+    this.y = 0;
+  }
+
+  // Helper para texto
+  private texto(
+    texto: string,
+    x: number,
+    y: number,
+    tamanho: number,
+    estilo: "normal" | "bold" = "normal",
+    cor: [number, number, number] = CORES.escuro,
+    alinhamento: "left" | "center" | "right" = "left"
+  ) {
+    this.doc.setFont("helvetica", estilo);
+    this.doc.setFontSize(tamanho);
+    this.doc.setTextColor(...cor);
+    this.doc.text(texto, x, y, { align: alinhamento });
+  }
+
+  // Helper para box com borda
+  private box(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    cor: [number, number, number],
+    borda = false,
+    raio = 0
+  ) {
+    if (borda) {
+      this.doc.setDrawColor(...cor);
+      this.doc.roundedRect(x, y, w, h, raio, raio, "S");
+    } else {
+      this.doc.setFillColor(...cor);
+      this.doc.roundedRect(x, y, w, h, raio, raio, "F");
+    }
+  }
+
+  // Helper para linha horizontal
+  private linha(x: number, y: number, w: number, cor: [number, number, number] = CORES.cinzaClaro) {
+    this.doc.setDrawColor(...cor);
+    this.doc.line(x, y, x + w, y);
+  }
+
+  /* ============================================================
+     MÉTODOS DE CONSTRUÇÃO
+     ============================================================ */
+
+  // 1. CABEÇALHO
+  private construirCabecalho(config: Config, voucher: Voucher) {
+    // Fundo gradiente (simulado com duas formas)
+    this.doc.setFillColor(...CORES.primaria);
+    this.doc.rect(0, 0, this.L, 45, "F");
+    
+    // Detalhe triangular
+    this.doc.setFillColor(...CORES.secundaria);
+    this.doc.triangle(this.L - 80, 0, this.L, 0, this.L, 45, "F");
+
+    // Nome da empresa
+    this.texto(config.empresa, this.M, 18, 22, "bold", CORES.branco);
+
+    // Informações da empresa
+    let subY = 26;
+    if (config.cnpj) {
+      this.texto(`CNPJ: ${config.cnpj}`, this.M, subY, 8, "normal", [200, 210, 255]);
+      subY += 5;
+    }
+    if (config.instagram) {
+      this.texto(config.instagram, this.M, subY, 8, "normal", [200, 210, 255]);
+      subY += 5;
+    }
+    if (config.telefone) {
+      this.texto(config.telefone, this.M, subY, 8, "normal", [200, 210, 255]);
+    }
+
+    // Voucher
+    this.texto("VOUCHER OFICIAL", this.L - this.M, 16, 9, "bold", [200, 210, 255], "right");
+    this.texto(voucher.codigo, this.L - this.M, 24, 18, "bold", CORES.branco, "right");
+    this.texto(
+      `Emitido em ${dataBR(voucher.criadoEm.slice(0, 10))}`,
+      this.L - this.M,
+      32,
+      8,
+      "normal",
+      [200, 210, 255],
+      "right"
+    );
+
+    this.y = 55;
+  }
+
+  // 2. TÍTULO DO PASSEIO
+  private construirTituloPasseio(voucher: Voucher) {
+    // Box de fundo
+    this.box(this.M, this.y - 8, this.W, 22, CORES.fundo, false, 3);
+    
+    // Rótulo
+    this.texto("PASSEIO ESPECIAL", this.M + 5, this.y - 2, 8, "bold", CORES.cinza);
+    
+    // Nome do passeio
+    const nome = nomesPasseios(voucher) || "—";
+    this.texto(nome, this.M + 5, this.y + 7, 14, "bold", CORES.primaria);
+    
+    // Detalhes do passeio (localidades)
+    if (voucher.passeios?.length) {
+      const locais = voucher.passeios
+        .map(p => p.local || p.nome)
+        .filter(Boolean)
+        .join(" • ");
+      
+      if (locais) {
+        this.texto(locais, this.M + 5, this.y + 15, 8, "normal", CORES.cinza);
+        this.y += 26;
+      } else {
+        this.y += 22;
+      }
+    } else {
+      this.y += 22;
+    }
+  }
+
+  // 3. DADOS DA RESERVA
+  private construirDadosReserva(voucher: Voucher) {
+    // Título da seção
+    this.texto("DADOS DA RESERVA & PASSAGEIRO", this.M, this.y, 8, "bold", CORES.cinza);
+    this.y += 6;
+
+    const pessoas = totalPessoas(voucher);
+    const dados = [
+      { label: "NOME DO CLIENTE / RESPONSÁVEL", value: nomesClientes(voucher) },
+      { label: "TELEFONE / WHATSAPP", value: [voucher.telefone, voucher.contatoExtra].filter(Boolean).join("  •  ") || "—" },
+      { label: "QUANTIDADE DE PASSAGEIROS", value: `${pessoas} Pessoas (${voucher.passeios?.length || 0} adulto${(voucher.passeios?.length || 0) > 1 ? "s" : ""} / 1 criança)` },
+      { label: "PONTO DE EMBARQUE / HOTEL", value: voucher.hotel || "—" },
+      { label: "DATA DO PASSEIO", value: datasPasseios(voucher) || "—" },
+      { label: "HORÁRIO", value: voucher.passeios?.[0]?.hora ? `${voucher.passeios[0].hora}h (Tolerância 10min)` : "—" },
+    ];
+
+    // Layout em duas colunas
+    const colWidth = (this.W - 8) / 2;
+    dados.forEach((item, index) => {
+      const col = index % 2;
+      const row = Math.floor(index / 2);
+      const x = this.M + col * (colWidth + 8);
+      const yPos = this.y + row * 28;
+
+      // Box
+      this.box(x, yPos, colWidth, 24, CORES.fundo, false, 2);
+      
+      // Label
+      this.texto(item.label, x + 4, yPos + 6, 6.5, "bold", CORES.cinza);
+      
+      // Valor
+      const lines = this.doc.splitTextToSize(item.value, colWidth - 8) as string[];
+      this.texto(lines[0] || "—", x + 4, yPos + 14, 10, "bold", CORES.escuro);
+      
+      // Se tiver mais linhas
+      if (lines.length > 1) {
+        this.texto(lines[1], x + 4, yPos + 20, 9, "normal", CORES.cinza);
+      }
+    });
+
+    this.y += Math.ceil(dados.length / 2) * 28 + 8;
+  }
+
+  // 4. DETALHES DO TRANSPORTE
+  private construirDetalhesTransporte(voucher: Voucher, config: Config) {
+    if (!voucher.passeios?.length) return;
+
+    this.texto("DETALHES DO TRANSPORTE & MOTORISTA", this.M, this.y, 8, "bold", CORES.cinza);
+    this.y += 6;
+
+    const primeiroPasseio = voucher.passeios[0];
+    const colWidth = (this.W - 4) / 3;
+
+    const dados = [
+      { label: "MOTORISTA / GUIA RESPONSÁVEL", value: primeiroPasseio.motorista || config.motorista || "—" },
+      { label: "VEÍCULO / MODELO", value: primeiroPasseio.veiculo || config.veiculo || "—" },
+      { label: "PLACA DO VEÍCULO", value: primeiroPasseio.placa || config.placa || "—" },
+    ];
+
+    dados.forEach((item, index) => {
+      const x = this.M + index * (colWidth + 2);
+      
+      // Box
+      this.box(x, this.y, colWidth, 22, CORES.fundo, false, 2);
+      
+      // Label
+      this.texto(item.label, x + 3, this.y + 6, 6, "bold", CORES.cinza);
+      
+      // Valor
+      const lines = this.doc.splitTextToSize(item.value, colWidth - 6) as string[];
+      this.texto(lines[0] || "—", x + 3, this.y + 14, 9, "bold", CORES.escuro);
+      
+      if (lines.length > 1) {
+        this.texto(lines[1], x + 3, this.y + 19, 8, "normal", CORES.cinza);
+      }
+    });
+
+    this.y += 28;
+  }
+
+  // 5. ROTEIRO
+  private construirRoteiro(voucher: Voucher) {
+    const passeios = (voucher.passeios || []).filter(p => p.nome || p.data);
+    if (!passeios.length) return;
+
+    this.texto("ROTEIRO & ORIENTAÇÕES DO PASSEIO", this.M, this.y, 8, "bold", CORES.cinza);
+    this.y += 6;
+
+    passeios.forEach((p) => {
+      // Marcador
+      this.doc.setFillColor(...CORES.primaria);
+      this.doc.circle(this.M + 2, this.y + 1.5, 1.5, "F");
+
+      let txt = `• ${p.nome || "Passeio"} — ${dataBR(p.data)}`;
+      if (p.hora) txt += ` às ${p.hora} (ida)`;
+      
+      if (p.dataVolta && p.dataVolta !== p.data) {
+        txt += ` | Volta ${dataBR(p.dataVolta)}`;
+        if (p.horaVolta) txt += ` às ${p.horaVolta}`;
+      } else if (p.horaVolta) {
+        txt += ` | Volta às ${p.horaVolta}`;
+      }
+      
+      if (p.local) txt += ` · ${p.local}`;
+
+      const lines = this.doc.splitTextToSize(txt, this.W - 10) as string[];
+      this.texto(lines[0] || txt, this.M + 7, this.y, 9.5, "normal");
+      this.y += 5.5;
+
+      // Sub-itens (recomendações)
+      if (p.recomendacoes) {
+        const recs = p.recomendacoes.split("\n");
+        recs.forEach(rec => {
+          if (rec.trim()) {
+            this.texto(`   ${rec.trim()}`, this.M + 7, this.y, 8, "normal", CORES.cinza);
+            this.y += 4.5;
+          }
+        });
+      }
+    });
+
+    this.y += 4;
+  }
+
+  // 6. PAGAMENTO
+  private construirPagamento(voucher: Voucher) {
+    const total = voucher.total || 0;
+    const entrada = voucher.entrada || 0;
+    const aReceberValor = aReceber(voucher);
+
+    // Box principal
+    this.box(this.M, this.y, this.W, 28, CORES.escuro, false, 3);
+
+    const colWidth = this.W / 3;
+    const items = [
+      { label: "ENTRADA PAGA", value: brl(entrada), status: entrada > 0 ? "✓ CONFIRMADO" : "" },
+      { label: "VALOR TOTAL", value: brl(total) },
+      { label: "A RECEBER", value: brl(aReceberValor) },
+    ];
+
+    items.forEach((item, index) => {
+      const x = this.M + index * colWidth + colWidth / 2;
+      
+      // Label
+      this.texto(item.label, x, this.y + 10, 7.5, "normal", CORES.cinzaClaro, "center");
+      
+      // Valor
+      const cor = index === 2 ? CORES.destaque : CORES.branco;
+      const tamanho = index === 2 ? 14 : 12;
+      this.texto(item.value, x, this.y + 20, tamanho, "bold", cor, "center");
+      
+      // Status (apenas para entrada)
+      if (item.status) {
+        this.texto(item.status, x, this.y + 26, 7, "bold", CORES.sucesso, "center");
+      }
+    });
+
+    this.y += 34;
+
+    // Forma de pagamento
+    if (voucher.formaPagamento) {
+      this.texto(
+        `Forma de pagamento: ${voucher.formaPagamento}`,
+        this.M,
+        this.y,
+        9,
+        "normal",
+        CORES.cinza
+      );
+      this.y += 7;
+    }
+  }
+
+  // 7. INSTRUÇÕES
+  private construirInstrucoes(voucher: Voucher, config: Config) {
+    const colWidth = (this.W - 4) / 2;
+
+    const instrucoes = [
+      {
+        label: "INSTRUÇÃO PARA O CLIENTE",
+        value: `Esteja na recepção do hotel com 10 minutos de antecedência. Em caso de imprevistos ou dúvidas durante o passeio, entre em contato imediatamente com nossa central: ${config.telefone || "—"}`,
+      },
+      {
+        label: "INSTRUÇÃO PARA O MOTORISTA",
+        value: "Confirmar a quantidade de passageiros e nomes no embarque. Manter o veículo higienizado e ar-condicionado em temperatura agradável. Boa viagem!",
+      },
+    ];
+
+    instrucoes.forEach((item, index) => {
+      const x = this.M + index * (colWidth + 4);
+      
+      this.texto(item.label, x, this.y, 7.5, "bold", CORES.cinza);
+      this.y += 5;
+
+      const lines = this.doc.splitTextToSize(item.value, colWidth - 4) as string[];
+      this.texto(lines[0] || item.value, x, this.y, 8.5, "normal", CORES.escuro);
+      
+      for (let i = 1; i < Math.min(lines.length, 3); i++) {
+        this.texto(lines[i], x, this.y + i * 5, 8.5, "normal", CORES.escuro);
+      }
+      
+      this.y += Math.min(lines.length, 3) * 5 + 4;
+    });
+
+    this.y += 2;
+  }
+
+  // 8. OBSERVAÇÕES
+  private construirObservacoes(voucher: Voucher) {
+    if (!voucher.observacoes) return;
+
+    this.texto("OBSERVAÇÕES", this.M, this.y, 7.5, "bold", CORES.cinza);
+    this.y += 5;
+
+    const lines = this.doc.splitTextToSize(voucher.observacoes, this.W - 4) as string[];
+    lines.slice(0, 4).forEach(line => {
+      this.texto(line, this.M, this.y, 9, "normal", CORES.escuro);
+      this.y += 5;
+    });
+
+    this.y += 3;
+  }
+
+  // 9. POLÍTICA DE CANCELAMENTO
+  private construirPoliticaCancelamento(config: Config) {
+    if (!config.politicaCancelamento?.trim()) return;
+
+    const texto = config.politicaCancelamento.trim();
+    const lines = this.doc.splitTextToSize(texto, this.W - 12) as string[];
+    const limite = 276;
+    const alturaLinha = 4.4;
+    const topoBox = 14;
+
+    let i = 0;
+    let primeira = true;
+
+    while (i < lines.length) {
+      const cabem = Math.floor((limite - this.y - topoBox) / alturaLinha);
+      
+      if (cabem < 3) {
+        this.doc.addPage();
+        this.y = 18;
+        continue;
+      }
+
+      const trecho = lines.slice(i, i + cabem);
+      const altura = topoBox + trecho.length * alturaLinha;
+
+      // Fundo
+      this.doc.setFillColor(254, 242, 242);
+      this.doc.roundedRect(this.M, this.y, this.W, altura, 3, 3, "F");
+      
+      // Barra lateral
+      this.doc.setFillColor(239, 68, 68);
+      this.doc.roundedRect(this.M, this.y, 2, altura, 1, 1, "F");
+
+      // Título
+      this.texto(
+        primeira ? "POLÍTICA DE CANCELAMENTO" : "POLÍTICA DE CANCELAMENTO (CONTINUAÇÃO)",
+        this.M + 6,
+        this.y + 8,
+        8.5,
+        "bold",
+        [185, 28, 28]
+      );
+
+      // Conteúdo
+      trecho.forEach((t, j) => {
+        this.texto(t, this.M + 6, this.y + topoBox + j * alturaLinha, 8, "normal", [127, 29, 29]);
+      });
+
+      i += trecho.length;
+      primeira = false;
+      this.y += altura + 8;
+    }
+  }
+
+  // 10. RODAPÉ
+  private construirRodape(voucher: Voucher, config: Config) {
+    const paginas = this.doc.getNumberOfPages();
+    for (let p = 1; p <= paginas; p++) {
+      this.doc.setPage(p);
+      this.linha(this.M, 285, this.W, [200, 200, 200]);
+      
+      this.texto(
+        `${config.empresa} · Voucher ${voucher.codigo}`,
+        this.M,
+        290,
+        7.5,
+        "normal",
+        CORES.cinza
+      );
+      this.texto(
+        `Página ${p} de ${paginas}`,
+        this.L - this.M,
+        290,
+        7.5,
+        "normal",
+        CORES.cinza,
+        "right"
+      );
+    }
+  }
+
+  /* ============================================================
+     CONSTRUIR PDF COMPLETO
+     ============================================================ */
+  construir(voucher: Voucher, config: Config): jsPDF {
+    // 1. Cabeçalho
+    this.construirCabecalho(config, voucher);
+
+    // 2. Título do Passeio
+    this.construirTituloPasseio(voucher);
+
+    // 3. Dados da Reserva
+    this.construirDadosReserva(voucher);
+
+    // 4. Detalhes do Transporte
+    this.construirDetalhesTransporte(voucher, config);
+
+    // 5. Roteiro
+    this.construirRoteiro(voucher);
+
+    // 6. Pagamento
+    this.construirPagamento(voucher);
+
+    // 7. Instruções
+    this.construirInstrucoes(voucher, config);
+
+    // 8. Observações
+    this.construirObservacoes(voucher);
+
+    // 9. Política de Cancelamento
+    this.construirPoliticaCancelamento(config);
+
+    // 10. Rodapé
+    this.construirRodape(voucher, config);
+
+    return this.doc;
+  }
+}
+
+/* ============================================================
+   FUNÇÕES EXPORTADAS
+   ============================================================ */
+
+export function gerarPDFVoucher(v: Voucher, config: Config) {
+  const builder = new PDFVoucherBuilder();
+  return builder.construir(v, config);
+}
+
+export function nomeArquivoPDF(v: Voucher) {
+  return `voucher-${v.codigo}-${(nomesClientes(v) || "cliente")
+    .split(" ")[0]
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[^a-z0-9]/gi, "")}.pdf`;
+}
+
+export function arquivoPDFVoucher(v: Voucher, config: Config) {
+  const blob = gerarPDFVoucher(v, config).output("blob");
+  return new File([blob], nomeArquivoPDF(v), { type: "application/pdf" });
+}
+
+export function baixarPDFVoucher(v: Voucher, config: Config) {
+  gerarPDFVoucher(v, config).save(nomeArquivoPDF(v));
+}
+
+export function abrirPDFVoucher(v: Voucher, config: Config) {
+  const url = gerarPDFVoucher(v, config).output("bloburl");
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/* ============================================================
+   WHATSAPP E COMPARTILHAMENTO
+   ============================================================ */
+
+export type ResultadoCompartilhamento = "compartilhado" | "cancelado" | "sem-suporte";
+
+export async function compartilharPDFVoucher(
+  v: Voucher,
+  config: Config
+): Promise<ResultadoCompartilhamento> {
+  try {
+    const arquivo = arquivoPDFVoucher(v, config);
+    if (
+      typeof navigator === "undefined" ||
+      typeof navigator.canShare !== "function" ||
+      !navigator.canShare({ files: [arquivo] })
+    ) {
+      return "sem-suporte";
+    }
+
+    await navigator.share({
+      files: [arquivo],
+      title: `Voucher ${v.codigo}`,
+      text: mensagemVoucher(v, config),
+    });
+    return "compartilhado";
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") return "cancelado";
+    return "sem-suporte";
+  }
+}
+
+export function baixarEAbrirWhatsApp(v: Voucher, config: Config) {
+  baixarPDFVoucher(v, config);
+  window.open(linkAbrirWhatsApp(mensagemVoucher(v, config)), "_blank", "noopener,noreferrer");
+}
+
+/* ============================================================
+   GOOGLE AGENDA
    ============================================================ */
 
 const zzz = (n: number) => String(n).padStart(2, "0");
 
-/** "2026-07-29" + "08:00" -> "20260729T080000" */
 function carimbo(data: string, hora: string) {
   const [y, m, d] = data.split("-").map(Number);
   const [h, mi] = (hora || "08:00").split(":").map(Number);
@@ -32,21 +590,16 @@ function somarHoras(data: string, hora: string, horas: number) {
   return `${dt.getFullYear()}${zzz(dt.getMonth() + 1)}${zzz(dt.getDate())}T${zzz(dt.getHours())}${zzz(dt.getMinutes())}00`;
 }
 
-/**
- * Gera o link "Adicionar ao Google Agenda" do voucher.
- * Com hora definida cria evento com horário; sem hora, cria evento de dia inteiro.
- */
 export function linkGoogleAgenda(v: Voucher, config: Config) {
   const passeios = (v.passeios || []).filter((p) => p.data);
   if (!passeios.length) return "";
 
   const ordenados = [...passeios].sort((a, b) =>
-    `${a.data}${a.hora}`.localeCompare(`${b.data}${b.hora}`),
+    `${a.data}${a.hora}`.localeCompare(`${b.data}${b.hora}`)
   );
   const inicio = ordenados[0];
   const fim = ordenados[ordenados.length - 1];
 
-  // Use volta if available on last passeio for end time
   const fimData = fim.dataVolta || fim.data;
   const fimHora = fim.horaVolta || fim.hora || inicio.hora;
 
@@ -93,371 +646,4 @@ export function linkGoogleAgenda(v: Voucher, config: Config) {
   });
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
-/* ============================================================
-   Envio pelo WhatsApp (PDF + mensagem curta)
-   ============================================================ */
-
-/**
- * Abre o menu de compartilhamento do celular já com o PDF do voucher anexado
- * e a mensagem curta (saudação + texto das Configurações). Aí é só escolher
- * o WhatsApp e o contato — sem número fixo.
- *
- * Retorna:
- * - "compartilhado": o menu abriu e o envio foi concluído;
- * - "cancelado": a pessoa fechou o menu (não fazer nada);
- * - "sem-suporte": o navegador não consegue anexar arquivos (usar o plano B).
- */
-export type ResultadoCompartilhamento = "compartilhado" | "cancelado" | "sem-suporte";
-
-export async function compartilharPDFVoucher(
-  v: Voucher,
-  config: Config,
-): Promise<ResultadoCompartilhamento> {
-  try {
-    const arquivo = arquivoPDFVoucher(v, config);
-    if (
-      typeof navigator === "undefined" ||
-      typeof navigator.canShare !== "function" ||
-      !navigator.canShare({ files: [arquivo] })
-    )
-      return "sem-suporte";
-
-    await navigator.share({
-      files: [arquivo],
-      title: `Voucher ${v.codigo}`,
-      text: mensagemVoucher(v, config),
-    });
-    return "compartilhado";
-  } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") return "cancelado";
-    return "sem-suporte";
-  }
-}
-
-/**
- * Plano B para computadores: baixa o PDF e abre o WhatsApp (sem número,
- * com a mensagem pronta) para anexar o arquivo manualmente.
- */
-export function baixarEAbrirWhatsApp(v: Voucher, config: Config) {
-  baixarPDFVoucher(v, config);
-  window.open(linkAbrirWhatsApp(mensagemVoucher(v, config)), "_blank", "noopener,noreferrer");
-}
-
-/* ============================================================
-   PDF
-   ============================================================ */
-
-const INDIGO: [number, number, number] = [79, 70, 229];
-const VIOLETA: [number, number, number] = [124, 58, 237];
-const ESCURO: [number, number, number] = [15, 23, 42];
-const CINZA: [number, number, number] = [100, 116, 139];
-const CLARO: [number, number, number] = [241, 245, 249];
-
-export function gerarPDFVoucher(v: Voucher, config: Config) {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const L = 210;
-  const M = 14;
-  const W = L - M * 2;
-  let y = 0;
-
-  const linhaTexto = (
-    texto: string,
-    x: number,
-    yy: number,
-    tam: number,
-    estilo: "normal" | "bold" = "normal",
-    cor: [number, number, number] = ESCURO,
-  ) => {
-    doc.setFont("helvetica", estilo);
-    doc.setFontSize(tam);
-    doc.setTextColor(...cor);
-    doc.text(texto, x, yy);
-  };
-
-  /* ---- Cabeçalho ---- */
-  doc.setFillColor(...INDIGO);
-  doc.rect(0, 0, L, 42, "F");
-  doc.setFillColor(...VIOLETA);
-  doc.triangle(L - 70, 0, L, 0, L, 42, "F");
-
-  linhaTexto(config.empresa, M, 18, 20, "bold", [255, 255, 255]);
-  let sub = 25;
-  if (config.cnpj) {
-    linhaTexto(`CNPJ: ${config.cnpj}`, M, sub, 9, "normal", [224, 231, 255]);
-    sub += 5;
-  }
-  if (config.instagram) {
-    linhaTexto(config.instagram, M, sub, 9, "normal", [224, 231, 255]);
-    sub += 5;
-  }
-  if (config.telefone) linhaTexto(config.telefone, M, sub, 9, "normal", [224, 231, 255]);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(224, 231, 255);
-  doc.text("VOUCHER", L - M, 16, { align: "right" });
-  doc.setFontSize(17);
-  doc.setTextColor(255, 255, 255);
-  doc.text(v.codigo, L - M, 24, { align: "right" });
-  doc.setFontSize(8);
-  doc.setTextColor(224, 231, 255);
-  doc.text(`Emitido em ${dataBR(v.criadoEm.slice(0, 10))}`, L - M, 31, { align: "right" });
-
-  y = 55;
-
-  /* ---- Serviço contratado ---- */
-  doc.setFillColor(...CLARO);
-  doc.roundedRect(M, y - 8, W, 20, 3, 3, "F");
-  linhaTexto("SERVIÇO CONTRATADO", M + 5, y - 2, 7.5, "bold", CINZA);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  const servico = doc.splitTextToSize(nomesPasseios(v) || "—", W - 10) as string[];
-  linhaTexto(servico[0], M + 5, y + 6, 13, "bold", INDIGO);
-  y += 22;
-
-  /* ---- Dados ---- */
-  const pessoas = totalPessoas(v);
-  const dados: [string, string][] = [
-    ["Cliente", `${nomesClientes(v)}  (${pessoas} pessoa${pessoas > 1 ? "s" : ""})`],
-    ["Hotel", v.hotel || "—"],
-    ["Telefone", [v.telefone, v.contatoExtra].filter(Boolean).join("  ·  ") || "—"],
-    ["Data dos passeios", datasPasseios(v) || "—"],
-  ];
-
-  dados.forEach(([rot, val]) => {
-    linhaTexto(rot.toUpperCase(), M, y, 7.5, "bold", CINZA);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    const linhas = doc.splitTextToSize(val, W - 4) as string[];
-    linhaTexto(linhas[0], M, y + 6, 11, "bold");
-    let extra = 0;
-    linhas.slice(1, 3).forEach((t, i) => {
-      linhaTexto(t, M, y + 12 + i * 5, 11, "bold");
-      extra += 5;
-    });
-    y += 13 + extra;
-    doc.setDrawColor(226, 232, 240);
-    doc.line(M, y - 4, L - M, y - 4);
-  });
-
-  /* ---- Roteiro (passeios com hora) ---- */
-  const passeios = (v.passeios || []).filter((p) => p.nome || p.data);
-  if (passeios.length) {
-    y += 2;
-    linhaTexto("ROTEIRO", M, y, 7.5, "bold", CINZA);
-    y += 6;
-    passeios.forEach((p) => {
-      doc.setFillColor(...INDIGO);
-      doc.circle(M + 1.5, y - 1.4, 1.4, "F");
-      let txt = `${p.nome || "Passeio"} — ${dataBR(p.data)}`;
-      if (p.hora) txt += ` às ${p.hora} (ida)`;
-      if (p.dataVolta && p.dataVolta !== p.data) {
-        txt += ` | Volta: ${dataBR(p.dataVolta)}`;
-        if (p.horaVolta) txt += ` às ${p.horaVolta}`;
-      } else if (p.horaVolta) {
-        txt += ` | Volta às ${p.horaVolta}`;
-      }
-      if (p.local) txt += ` · ${p.local}`;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      const linhas = doc.splitTextToSize(txt, W - 8) as string[];
-      linhaTexto(linhas[0], M + 6, y, 10);
-      y += 6;
-    });
-    y += 2;
-  }
-
-  /* ---- Pagamento ---- */
-  doc.setFillColor(...ESCURO);
-  doc.roundedRect(M, y, W, 26, 3, 3, "F");
-  const col = W / 3;
-  const caixa = (i: number, rot: string, val: string, destaque = false) => {
-    const cx = M + col * i + col / 2;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text(rot.toUpperCase(), cx, y + 9, { align: "center" });
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(destaque ? 14 : 12);
-    const c: [number, number, number] = destaque ? [167, 139, 250] : [255, 255, 255];
-    doc.setTextColor(c[0], c[1], c[2]);
-    doc.text(val, cx, y + 18, { align: "center" });
-  };
-  caixa(0, "Entrada paga", brl(v.entrada));
-  caixa(1, "A receber", brl(aReceber(v)));
-  caixa(2, "Valor total", brl(v.total), true);
-  y += 32;
-
-  if (v.formaPagamento) {
-    linhaTexto(`Forma de pagamento: ${v.formaPagamento}`, M, y, 9, "normal", CINZA);
-    y += 7;
-  }
-
-  /* ---- Google Agenda ---- */
-  const agenda = linkGoogleAgenda(v, config);
-  if (agenda) {
-    doc.setFillColor(238, 242, 255);
-    doc.roundedRect(M, y, W, 16, 3, 3, "F");
-    linhaTexto("Adicione os passeios no seu Google Agenda", M + 5, y + 6.5, 9, "bold", INDIGO);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...CINZA);
-    doc.textWithLink("Toque aqui para abrir o link e salvar na sua agenda", M + 5, y + 12, {
-      url: agenda,
-    });
-    doc.link(M, y, W, 16, { url: agenda });
-    y += 22;
-  }
-
-  /* ---- Observações ---- */
-  if (v.observacoes) {
-    linhaTexto("OBSERVAÇÕES", M, y, 7.5, "bold", CINZA);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    const linhas = doc.splitTextToSize(v.observacoes, W - 4) as string[];
-    doc.setTextColor(...ESCURO);
-    linhas.slice(0, 4).forEach((t) => {
-      doc.text(t, M, y);
-      y += 5;
-    });
-    y += 3;
-  }
-
-  /* ============================================================
-     NOVAS SEÇÕES DO LAYOUT (Incluso / Não incluso / O que levar / Retorno)
-     Baseado no modelo que o usuário enviou
-  ============================================================ */
-  const addSection = (titulo: string, conteudo: string | undefined, corTitulo: [number,number,number] = CINZA) => {
-    if (!conteudo?.trim()) return;
-    const linhas = doc.splitTextToSize(conteudo.trim(), W - 10) as string[];
-    if (!linhas.length) return;
-
-    // pequena separação
-    y += 3;
-
-    linhaTexto(titulo, M, y, 8, "bold", corTitulo);
-    y += 5;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...ESCURO);
-
-    linhas.slice(0, 7).forEach((t) => {
-      doc.text(t, M + 2, y);
-      y += 4.5;
-    });
-    y += 4;
-  };
-
-  // Seções do modelo
-  addSection("INCLUSO NO PASSEIO", (config as any).incluso);
-  addSection("NÃO INCLUSO", (config as any).naoIncluso);
-  addSection("O QUE LEVAR", (config as any).oQueLevar);
-
-  if ((config as any).pontoRetorno || (config as any).informacoesAdicionais) {
-    y += 2;
-    linhaTexto("INFORMAÇÕES IMPORTANTES", M, y, 8, "bold", CINZA);
-    y += 5;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...ESCURO);
-
-    if ((config as any).pontoRetorno) {
-      const linhas = doc.splitTextToSize((config as any).pontoRetorno, W - 4) as string[];
-      linhas.slice(0, 3).forEach((t) => { doc.text(t, M, y); y += 4.5; });
-    }
-    if ((config as any).informacoesAdicionais) {
-      const linhas = doc.splitTextToSize((config as any).informacoesAdicionais, W - 4) as string[];
-      linhas.slice(0, 4).forEach((t) => { doc.text(t, M, y); y += 4.5; });
-    }
-    y += 3;
-  }
-
-  /* ---- Política de cancelamento ----
-     Quebra o texto em quantas folhas forem preciso: cada trecho recebe a
-     própria caixa, sem nunca passar do limite do rodapé da página. */
-  if (config.politicaCancelamento?.trim()) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    const linhas = doc.splitTextToSize(config.politicaCancelamento.trim(), W - 12) as string[];
-    const LIMITE = 276; // rodapé começa em 285 mm
-    const ALT_LINHA = 4.4;
-    const TOPO_CAIXA = 14; // título + respiro antes da 1ª linha de texto
-
-    let i = 0;
-    let primeira = true;
-    while (i < linhas.length) {
-      const cabem = Math.floor((LIMITE - y - TOPO_CAIXA) / ALT_LINHA);
-      if (cabem < 3) {
-        // sem espaço mínimo na folha atual: começa em folha nova
-        doc.addPage();
-        y = 18;
-        continue;
-      }
-      const trecho = linhas.slice(i, i + cabem);
-      const altura = TOPO_CAIXA + trecho.length * ALT_LINHA;
-      doc.setFillColor(254, 242, 242);
-      doc.roundedRect(M, y, W, altura, 3, 3, "F");
-      doc.setFillColor(239, 68, 68);
-      doc.roundedRect(M, y, 1.6, altura, 1, 1, "F");
-      linhaTexto(
-        primeira ? "POLÍTICA DE CANCELAMENTO" : "POLÍTICA DE CANCELAMENTO (CONTINUAÇÃO)",
-        M + 6,
-        y + 8,
-        8.5,
-        "bold",
-        [185, 28, 28],
-      );
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(127, 29, 29);
-      trecho.forEach((t, j) => doc.text(t, M + 6, y + TOPO_CAIXA + j * ALT_LINHA));
-      i += trecho.length;
-      primeira = false;
-      y += altura + 8;
-    }
-  }
-
-  /* ---- Rodapé ---- */
-  const paginas = doc.getNumberOfPages();
-  for (let p = 1; p <= paginas; p++) {
-    doc.setPage(p);
-    doc.setDrawColor(226, 232, 240);
-    doc.line(M, 285, L - M, 285);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...CINZA);
-    doc.text(`${config.empresa} · Voucher ${v.codigo}`, M, 290);
-    doc.text(`Página ${p} de ${paginas}`, L - M, 290, { align: "right" });
-  }
-
-  return doc;
-}
-
-/** Nome do arquivo PDF do voucher: "voucher-VPA1B2C-maria.pdf" */
-export function nomeArquivoPDF(v: Voucher) {
-  return `voucher-${v.codigo}-${(nomesClientes(v) || "cliente")
-    .split(" ")[0]
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[^a-z0-9]/gi, "")}.pdf`;
-}
-
-/** O voucher em forma de arquivo (File), pronto para anexar/compartilhar. */
-export function arquivoPDFVoucher(v: Voucher, config: Config) {
-  const blob = gerarPDFVoucher(v, config).output("blob");
-  return new File([blob], nomeArquivoPDF(v), { type: "application/pdf" });
-}
-
-export function baixarPDFVoucher(v: Voucher, config: Config) {
-  gerarPDFVoucher(v, config).save(nomeArquivoPDF(v));
-}
-
-export function abrirPDFVoucher(v: Voucher, config: Config) {
-  const url = gerarPDFVoucher(v, config).output("bloburl");
-  window.open(url, "_blank", "noopener,noreferrer");
 }
