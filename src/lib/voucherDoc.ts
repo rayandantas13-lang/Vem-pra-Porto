@@ -387,7 +387,7 @@ class PDFVoucherBuilder {
     linhaDupla("INCLUSO NO PASSEIO", config.incluso, "NÃO INCLUSO", config.naoIncluso);
 
     // O que levar + Ponto de retorno
-    linhaDupla("O QUE LEVAR", config.oQueLevar, "PONTO DE RETORNO", config.pontoRetorno);
+    linhaDupla("O QUE LEVAR", config.oQueLevar, "PONTO DE ENCONTRO", config.pontoRetorno);
 
     // Informações adicionais + Observações do voucher (máx. 3 linhas)
     linhaDupla(
