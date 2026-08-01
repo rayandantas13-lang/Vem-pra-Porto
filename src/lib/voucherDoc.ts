@@ -33,11 +33,11 @@ const CORES = {
 class PDFVoucherBuilder {
   private doc: jsPDF;
   private readonly L = 210; // Largura A4
-  private readonly M = 14; // Margem
+  private readonly M = 12; // Margem (reduzida)
   private readonly W: number;
   private y = 0;
-  private readonly MARGEM_FIM = 275;
-  private readonly MARGEM_INICIO = 20;
+  private readonly MARGEM_FIM = 287;
+  private readonly MARGEM_INICIO = 18;
 
   constructor() {
     this.doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -99,181 +99,155 @@ class PDFVoucherBuilder {
      MÉTODOS DE CONSTRUÇÃO
      ============================================================ */
 
-  // 1. CABEÇALHO
+  // 1. CABEÇALHO (compacto)
   private construirCabecalho(config: Config, voucher: Voucher) {
-    // Fundo gradiente (simulado com duas formas)
+    const ALT_BANNER = 26;
+    
+    // Fundo
     this.doc.setFillColor(...CORES.primaria);
-    this.doc.rect(0, 0, this.L, 40, "F");
+    this.doc.rect(0, 0, this.L, ALT_BANNER, "F");
     
     // Detalhe triangular
     this.doc.setFillColor(...CORES.secundaria);
-    this.doc.triangle(this.L - 70, 0, this.L, 0, this.L, 40, "F");
+    this.doc.triangle(this.L - 50, 0, this.L, 0, this.L, ALT_BANNER, "F");
 
     // Nome da empresa
-    this.texto(config.empresa, this.M, 16, 20, "bold", CORES.branco);
+    this.texto(config.empresa, this.M, 12, 14, "bold", CORES.branco);
 
-    // Informações da empresa
-    let subY = 24;
-    if (config.cnpj) {
-      this.texto(`CNPJ: ${config.cnpj}`, this.M, subY, 8, "normal", [200, 210, 255]);
-      subY += 4.5;
-    }
-    if (config.instagram) {
-      this.texto(config.instagram, this.M, subY, 8, "normal", [200, 210, 255]);
-      subY += 4.5;
-    }
-    if (config.telefone) {
-      this.texto(config.telefone, this.M, subY, 8, "normal", [200, 210, 255]);
+    // Informações da empresa em uma linha
+    const subParts = [
+      config.cnpj ? `CNPJ: ${config.cnpj}` : "",
+      config.instagram,
+      config.telefone
+    ].filter(Boolean);
+    
+    if (subParts.length) {
+      this.texto(subParts.join("  ·  "), this.M, 19, 6.5, "normal", [224, 231, 255]);
     }
 
-    // Voucher
-    this.texto("VOUCHER OFICIAL", this.L - this.M, 14, 8, "bold", [200, 210, 255], "right");
-    this.texto(voucher.codigo, this.L - this.M, 22, 16, "bold", CORES.branco, "right");
+    // Voucher à direita
+    this.texto("VOUCHER", this.L - this.M, 10, 7, "bold", [224, 231, 255], "right");
+    this.texto(voucher.codigo, this.L - this.M, 17, 13, "bold", CORES.branco, "right");
     this.texto(
       `Emitido em ${dataBR(voucher.criadoEm.slice(0, 10))}`,
       this.L - this.M,
-      29,
-      8,
+      22,
+      6.5,
       "normal",
-      [200, 210, 255],
+      [224, 231, 255],
       "right"
     );
 
-    this.y = 48;
+    this.y = ALT_BANNER + 8;
   }
 
-  // 2. TÍTULO DO PASSEIO
+  // 2. TÍTULO DO PASSEIO (compacto)
   private construirTituloPasseio(voucher: Voucher) {
-    this.checkPageBreak(25);
+    this.checkPageBreak(16);
     // Box de fundo
-    this.box(this.M, this.y, this.W, 20, CORES.fundo, false, 3);
+    this.box(this.M, this.y, this.W, 14, CORES.fundo, false, 2);
     
     // Rótulo
-    this.texto("PASSEIO ESPECIAL", this.M + 5, this.y + 6, 8, "bold", CORES.cinza);
+    this.texto("SERVIÇO CONTRATADO", this.M + 4, this.y + 5, 6.5, "bold", CORES.cinza);
     
     // Nome do passeio
     const nome = nomesPasseios(voucher) || "—";
-    this.texto(nome, this.M + 5, this.y + 14, 13, "bold", CORES.primaria);
+    const lines = this.doc.splitTextToSize(nome, this.W - 10) as string[];
+    this.texto(lines[0], this.M + 4, this.y + 11, 10, "bold", CORES.primaria);
     
-    // Detalhes do passeio (localidades)
-    if (voucher.passeios?.length) {
-      const locais = voucher.passeios
-        .map(p => p.local || p.nome)
-        .filter(Boolean)
-        .join(" • ");
-      
-      if (locais) {
-        this.texto(locais, this.M + 5, this.y + 19, 7.5, "normal", CORES.cinza);
-        this.y += 26;
-      } else {
-        this.y += 24;
-      }
-    } else {
-      this.y += 24;
-    }
+    this.y += 16;
   }
 
-  // 3. DADOS DA RESERVA
+  // 3. DADOS DA RESERVA (compacto, 2 colunas)
   private construirDadosReserva(voucher: Voucher) {
     const pessoas = totalPessoas(voucher);
-    const dados = [
-      { label: "NOME DO CLIENTE / RESPONSÁVEL", value: nomesClientes(voucher) },
-      { label: "TELEFONE / WHATSAPP", value: [voucher.telefone, voucher.contatoExtra].filter(Boolean).join("  •  ") || "—" },
-      { label: "QUANTIDADE DE PASSAGEIROS", value: `${pessoas} Pessoas (${voucher.passeios?.length || 0} adulto${(voucher.passeios?.length || 0) > 1 ? "s" : ""} / 1 criança)` },
-      { label: "PONTO DE EMBARQUE / HOTEL", value: voucher.hotel || "—" },
-      { label: "DATA DO PASSEIO", value: datasPasseios(voucher) || "—" },
-      { label: "HORÁRIO", value: voucher.passeios?.[0]?.hora ? `${voucher.passeios[0].hora}h (Tolerância 10min)` : "—" },
-    ];
-
-    const rowHeight = 22;
-    const neededHeight = 10 + Math.ceil(dados.length / 2) * rowHeight;
-    this.checkPageBreak(neededHeight);
-
-    // Título da seção
-    this.texto("DADOS DA RESERVA & PASSAGEIRO", this.M, this.y, 8, "bold", CORES.cinza);
-    this.y += 6;
-
-    // Layout em duas colunas
     const colWidth = (this.W - 6) / 2;
-    dados.forEach((item, index) => {
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const x = this.M + col * (colWidth + 6);
-      const yPos = this.y + row * rowHeight;
 
-      // Box
-      this.box(x, yPos, colWidth, 19, CORES.fundo, false, 2);
-      
-      // Label
-      this.texto(item.label, x + 4, yPos + 5, 6, "bold", CORES.cinza);
-      
-      // Valor
-      const lines = this.doc.splitTextToSize(item.value, colWidth - 8) as string[];
-      if (lines.length <= 1) {
-        this.texto(lines[0] || "—", x + 4, yPos + 13, 9, "bold", CORES.escuro);
-      } else {
-        this.texto(lines[0], x + 4, yPos + 11, 9, "bold", CORES.escuro);
-        this.texto(lines[1], x + 4, yPos + 16, 7.5, "normal", CORES.cinza);
-      }
-    });
+    const desenhaCampo = (rot: string, val: string, x: number, yy: number, larg: number) => {
+      this.texto(rot.toUpperCase(), x, yy, 6, "bold", CORES.cinza);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(8.5);
+      const lines = this.doc.splitTextToSize(val, larg - 2) as string[];
+      this.texto(lines[0] || "—", x, yy + 5, 8.5, "bold", CORES.escuro);
+      let extra = 0;
+      lines.slice(1, 3).forEach((t, i) => {
+        this.texto(t, x, yy + 10 + i * 4, 8.5, "bold", CORES.escuro);
+        extra += 4;
+      });
+      return 8 + extra;
+    };
 
-    this.y += Math.ceil(dados.length / 2) * rowHeight + 6;
+    // Linha 1: Cliente (coluna inteira)
+    this.checkPageBreak(18);
+    const altCliente = desenhaCampo("Cliente", `${nomesClientes(voucher)}  (${pessoas} pessoa${pessoas > 1 ? "s" : ""})`, this.M, this.y, this.W);
+    this.y += altCliente + 2;
+    this.linha(this.M, this.y - 1, this.W, [226, 232, 240]);
+    this.y += 2;
+
+    // Linha 2: Hotel + Telefone lado a lado
+    this.checkPageBreak(14);
+    const altH = desenhaCampo("Hotel", voucher.hotel || "—", this.M, this.y, colWidth);
+    const altT = desenhaCampo("Telefone", [voucher.telefone, voucher.contatoExtra].filter(Boolean).join(" · ") || "—", this.M + colWidth + 6, this.y, colWidth);
+    this.y += Math.max(altH, altT) + 2;
+    this.linha(this.M, this.y - 1, this.W, [226, 232, 240]);
+    this.y += 2;
+
+    // Linha 3: Data dos passeios
+    this.checkPageBreak(12);
+    const altD = desenhaCampo("Data dos passeios", datasPasseios(voucher) || "—", this.M, this.y, this.W);
+    this.y += altD + 2;
   }
 
-  // 4. DETALHES DO TRANSPORTE
+  // 4. DETALHES DO TRANSPORTE (compacto)
   private construirDetalhesTransporte(voucher: Voucher, config: Config) {
     if (!voucher.passeios?.length) return;
 
-    this.checkPageBreak(25);
-    this.texto("DETALHES DO TRANSPORTE & MOTORISTA", this.M, this.y, 8, "bold", CORES.cinza);
-    this.y += 6;
+    this.checkPageBreak(18);
+    this.texto("DETALHES DO TRANSPORTE", this.M, this.y, 6.5, "bold", CORES.cinza);
+    this.y += 5;
 
     const primeiroPasseio = voucher.passeios[0];
     const colWidth = (this.W - 4) / 3;
 
     const dados = [
-      { label: "MOTORISTA / GUIA RESPONSÁVEL", value: primeiroPasseio.motorista || config.motorista || "—" },
-      { label: "VEÍCULO / MODELO", value: primeiroPasseio.veiculo || config.veiculo || "—" },
-      { label: "PLACA DO VEÍCULO", value: primeiroPasseio.placa || config.placa || "—" },
+      { label: "MOTORISTA", value: (primeiroPasseio as any).motorista || (config as any).motorista || "—" },
+      { label: "VEÍCULO", value: (primeiroPasseio as any).veiculo || (config as any).veiculo || "—" },
+      { label: "PLACA", value: (primeiroPasseio as any).placa || (config as any).placa || "—" },
     ];
 
     dados.forEach((item, index) => {
       const x = this.M + index * (colWidth + 2);
       
-      // Box
-      this.box(x, this.y, colWidth, 18, CORES.fundo, false, 2);
+      // Box compacto
+      this.box(x, this.y, colWidth, 13, CORES.fundo, false, 2);
       
       // Label
-      this.texto(item.label, x + 3, this.y + 5, 6, "bold", CORES.cinza);
+      this.texto(item.label, x + 3, this.y + 4, 5.5, "bold", CORES.cinza);
       
       // Valor
       const lines = this.doc.splitTextToSize(item.value, colWidth - 6) as string[];
-      this.texto(lines[0] || "—", x + 3, this.y + 12, 8.5, "bold", CORES.escuro);
-      
-      if (lines.length > 1) {
-        this.texto(lines[1], x + 3, this.y + 16, 7.5, "normal", CORES.cinza);
-      }
+      this.texto(lines[0] || "—", x + 3, this.y + 10, 7.5, "bold", CORES.escuro);
     });
 
-    this.y += 24;
+    this.y += 18;
   }
 
-  // 5. ROTEIRO
+  // 5. ROTEIRO (compacto)
   private construirRoteiro(voucher: Voucher) {
     const passeios = (voucher.passeios || []).filter(p => p.nome || p.data);
     if (!passeios.length) return;
 
-    this.checkPageBreak(15);
-    this.texto("ROTEIRO & ORIENTAÇÕES DO PASSEIO", this.M, this.y, 8, "bold", CORES.cinza);
-    this.y += 6;
+    this.checkPageBreak(12);
+    this.texto("ROTEIRO", this.M, this.y, 6.5, "bold", CORES.cinza);
+    this.y += 5;
 
     passeios.forEach((p) => {
-      this.checkPageBreak(10);
+      this.checkPageBreak(6);
       // Marcador
       this.doc.setFillColor(...CORES.primaria);
-      this.doc.circle(this.M + 2, this.y + 1.5, 1.5, "F");
+      this.doc.circle(this.M + 1.2, this.y + 1, 1, "F");
 
-      let txt = `• ${p.nome || "Passeio"} — ${dataBR(p.data)}`;
+      let txt = `${p.nome || "Passeio"} — ${dataBR(p.data)}`;
       if (p.hora) txt += ` às ${p.hora} (ida)`;
       
       if (p.dataVolta && p.dataVolta !== p.data) {
@@ -285,61 +259,44 @@ class PDFVoucherBuilder {
       
       if (p.local) txt += ` · ${p.local}`;
 
-      const lines = this.doc.splitTextToSize(txt, this.W - 10) as string[];
-      this.texto(lines[0] || txt, this.M + 7, this.y, 9, "normal");
-      this.y += 5;
-
-      // Sub-itens (recomendações)
-      if (p.recomendacoes) {
-        const recs = p.recomendacoes.split("\n");
-        recs.forEach(rec => {
-          if (rec.trim()) {
-            this.checkPageBreak(5);
-            this.texto(`   ${rec.trim()}`, this.M + 7, this.y, 7.5, "normal", CORES.cinza);
-            this.y += 4;
-          }
-        });
-      }
+      const lines = this.doc.splitTextToSize(txt, this.W - 8) as string[];
+      this.texto(lines[0] || txt, this.M + 5, this.y, 8, "normal");
+      this.y += 4.5;
     });
 
-    this.y += 3;
+    this.y += 2;
   }
 
-  // 6. PAGAMENTO
+  // 6. PAGAMENTO (compacto)
   private construirPagamento(voucher: Voucher) {
-    this.checkPageBreak(35);
+    this.checkPageBreak(22);
     const total = voucher.total || 0;
     const entrada = voucher.entrada || 0;
     const aReceberValor = aReceber(voucher);
 
-    // Box principal
-    this.box(this.M, this.y, this.W, 24, CORES.escuro, false, 3);
+    // Box principal (reduzido de 24mm para 18mm)
+    this.box(this.M, this.y, this.W, 18, CORES.escuro, false, 2);
 
     const colWidth = this.W / 3;
     const items = [
-      { label: "ENTRADA PAGA", value: brl(entrada), status: entrada > 0 ? "✓ CONFIRMADO" : "" },
-      { label: "VALOR TOTAL", value: brl(total) },
-      { label: "A RECEBER", value: brl(aReceberValor) },
+      { label: "ENTRADA PAGA", value: brl(entrada), destaque: false },
+      { label: "VALOR TOTAL", value: brl(total), destaque: false },
+      { label: "A RECEBER", value: brl(aReceberValor), destaque: true },
     ];
 
     items.forEach((item, index) => {
       const x = this.M + index * colWidth + colWidth / 2;
       
       // Label
-      this.texto(item.label, x, this.y + 8, 7, "normal", CORES.cinzaClaro, "center");
+      this.texto(item.label, x, this.y + 6, 6, "normal", CORES.cinzaClaro, "center");
       
       // Valor
-      const cor = index === 2 ? CORES.destaque : CORES.branco;
-      const tamanho = index === 2 ? 13 : 11;
-      this.texto(item.value, x, this.y + 17, tamanho, "bold", cor, "center");
-      
-      // Status (apenas para entrada)
-      if (item.status) {
-        this.texto(item.status, x, this.y + 22, 6.5, "bold", CORES.sucesso, "center");
-      }
+      const cor = item.destaque ? CORES.destaque : CORES.branco;
+      const tamanho = item.destaque ? 11 : 9.5;
+      this.texto(item.value, x, this.y + 13, tamanho, "bold", cor, "center");
     });
 
-    this.y += 28;
+    this.y += 21;
 
     // Forma de pagamento
     if (voucher.formaPagamento) {
@@ -347,120 +304,121 @@ class PDFVoucherBuilder {
         `Forma de pagamento: ${voucher.formaPagamento}`,
         this.M,
         this.y,
-        8.5,
+        7,
         "normal",
         CORES.cinza
       );
-      this.y += 6;
+      this.y += 5;
     }
   }
 
-  // 7. INSTRUÇÕES
-  private construirInstrucoes(voucher: Voucher, config: Config) {
-    this.checkPageBreak(25);
-    const colWidth = (this.W - 6) / 2;
-    const startY = this.y;
-    let maxSectionY = this.y;
+  // 7. INSTRUÇÕES E INFORMAÇÕES (compacto, 2 colunas)
+  private construirInstrucoes(_voucher: Voucher, config: Config) {
+    const colGap = 4;
+    const halfCol = (this.W - colGap) / 2;
 
-    const instrucoes = [
-      {
-        label: "INSTRUÇÃO PARA O CLIENTE",
-        value: `Esteja na recepção do hotel com 10 minutos de antecedência. Em caso de imprevistos ou dúvidas durante o passeio, entre em contato imediatamente com nossa central: ${config.telefone || "—"}`,
-      },
-      {
-        label: "INSTRUÇÃO PARA O MOTORISTA",
-        value: "Confirmar a quantidade de passageiros e nomes no embarque. Manter o veículo higienizado e ar-condicionado em temperatura agradável. Boa viagem!",
-      },
-    ];
+    const addSectionCompact = (
+      titulo: string,
+      conteudo: string | undefined,
+      x: number,
+      larg: number,
+      maxY: number,
+    ): number => {
+      if (!conteudo?.trim()) return 0;
+      const lines = this.doc.splitTextToSize(conteudo.trim(), larg - 4) as string[];
+      if (!lines.length) return 0;
 
-    instrucoes.forEach((item, index) => {
-      const x = this.M + index * (colWidth + 6);
-      let currentY = startY;
-      
-      this.texto(item.label, x, currentY, 7.5, "bold", CORES.cinza);
-      currentY += 5;
+      this.texto(titulo, x, maxY, 6.5, "bold", CORES.cinza);
+      let ly = maxY + 4;
 
-      const lines = this.doc.splitTextToSize(item.value, colWidth - 2) as string[];
-      lines.slice(0, 3).forEach((line, i) => {
-        this.texto(line, x, currentY + i * 4.5, 8, "normal", CORES.escuro);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(7);
+      this.doc.setTextColor(...CORES.escuro);
+
+      lines.forEach((t) => {
+        this.doc.text(t, x + 1, ly);
+        ly += 3.5;
       });
-      
-      const sectionEnd = currentY + Math.min(lines.length, 3) * 4.5;
-      if (sectionEnd > maxSectionY) maxSectionY = sectionEnd;
-    });
+      return ly - maxY + 2;
+    };
 
-    this.y = maxSectionY + 6;
+    // Incluso + Não incluso em 2 colunas
+    const yInicio = this.y;
+    const altIncluso = addSectionCompact("INCLUSO NO PASSEIO", config.incluso, this.M, halfCol, this.y);
+    const altNaoIncluso = addSectionCompact("NÃO INCLUSO", config.naoIncluso, this.M + halfCol + colGap, halfCol, this.y);
+    if (altIncluso || altNaoIncluso) {
+      this.y = yInicio + Math.max(altIncluso, altNaoIncluso) + 1;
+    }
+
+    // O que levar (linha inteira)
+    const altLevar = addSectionCompact("O QUE LEVAR", config.oQueLevar, this.M, this.W, this.y);
+    if (altLevar) this.y += altLevar;
+
+    // Ponto de retorno + Informações adicionais em 2 colunas
+    if (config.pontoRetorno || config.informacoesAdicionais) {
+      const yIni2 = this.y;
+      const altRet = addSectionCompact("PONTO DE RETORNO", config.pontoRetorno, this.M, halfCol, this.y);
+      const altInfo = addSectionCompact("INFORMAÇÕES ADICIONAIS", config.informacoesAdicionais, this.M + halfCol + colGap, halfCol, this.y);
+      if (altRet || altInfo) {
+        this.y = yIni2 + Math.max(altRet, altInfo) + 1;
+      }
+    }
   }
 
-  // 8. OBSERVAÇÕES
+  // 8. OBSERVAÇÕES (compacto)
   private construirObservacoes(voucher: Voucher) {
     if (!voucher.observacoes) return;
 
-    this.checkPageBreak(15);
-    this.texto("OBSERVAÇÕES", this.M, this.y, 7.5, "bold", CORES.cinza);
-    this.y += 5;
+    this.checkPageBreak(12);
+    this.texto("OBSERVAÇÕES", this.M, this.y, 6.5, "bold", CORES.cinza);
+    this.y += 4;
 
     const lines = this.doc.splitTextToSize(voucher.observacoes, this.W - 4) as string[];
-    lines.slice(0, 4).forEach(line => {
-      this.checkPageBreak(5);
-      this.texto(line, this.M, this.y, 8.5, "normal", CORES.escuro);
-      this.y += 4.5;
+    lines.slice(0, 3).forEach(line => {
+      this.checkPageBreak(4);
+      this.texto(line, this.M, this.y, 7.5, "normal", CORES.escuro);
+      this.y += 3.8;
     });
 
     this.y += 2;
   }
 
-  // 9. POLÍTICA DE CANCELAMENTO
+  // 9. POLÍTICA DE CANCELAMENTO (compacto, caixa única)
   private construirPoliticaCancelamento(config: Config) {
     if (!config.politicaCancelamento?.trim()) return;
 
     const texto = config.politicaCancelamento.trim();
-    const lines = this.doc.splitTextToSize(texto, this.W - 12) as string[];
-    const alturaLinha = 4.2;
-    const topoBox = 12;
+    const lines = this.doc.splitTextToSize(texto, this.W - 10) as string[];
+    const alturaLinha = 3.4;
+    const topoBox = 8;
+    const altura = topoBox + lines.length * alturaLinha + 2;
 
-    let i = 0;
-    let primeira = true;
+    this.checkPageBreak(altura + 4);
 
-    while (i < lines.length) {
-      const cabem = Math.floor((this.MARGEM_FIM - this.y - topoBox) / alturaLinha);
-      
-      if (cabem < 3) {
-        this.doc.addPage();
-        this.y = this.MARGEM_INICIO;
-        continue;
-      }
+    // Fundo
+    this.doc.setFillColor(254, 242, 242);
+    this.doc.roundedRect(this.M, this.y, this.W, altura, 2, 2, "F");
+    
+    // Barra lateral
+    this.doc.setFillColor(239, 68, 68);
+    this.doc.roundedRect(this.M, this.y, 1.2, altura, 1, 1, "F");
 
-      const trecho = lines.slice(i, i + cabem);
-      const altura = topoBox + trecho.length * alturaLinha + 4;
+    // Título
+    this.texto(
+      "POLÍTICA DE CANCELAMENTO",
+      this.M + 5,
+      this.y + 5,
+      7,
+      "bold",
+      [185, 28, 28]
+    );
 
-      // Fundo
-      this.doc.setFillColor(254, 242, 242);
-      this.doc.roundedRect(this.M, this.y, this.W, altura, 3, 3, "F");
-      
-      // Barra lateral
-      this.doc.setFillColor(239, 68, 68);
-      this.doc.roundedRect(this.M, this.y, 2, altura, 1, 1, "F");
+    // Conteúdo
+    lines.forEach((t, j) => {
+      this.texto(t, this.M + 5, this.y + topoBox + j * alturaLinha, 6.5, "normal", [127, 29, 29]);
+    });
 
-      // Título
-      this.texto(
-        primeira ? "POLÍTICA DE CANCELAMENTO" : "POLÍTICA DE CANCELAMENTO (CONTINUAÇÃO)",
-        this.M + 6,
-        this.y + 7,
-        8,
-        "bold",
-        [185, 28, 28]
-      );
-
-      // Conteúdo
-      trecho.forEach((t, j) => {
-        this.texto(t, this.M + 6, this.y + topoBox + j * alturaLinha, 7.5, "normal", [127, 29, 29]);
-      });
-
-      i += trecho.length;
-      primeira = false;
-      this.y += altura + 6;
-    }
+    this.y += altura + 3;
   }
 
   // 10. RODAPÉ
@@ -468,21 +426,21 @@ class PDFVoucherBuilder {
     const paginas = this.doc.getNumberOfPages();
     for (let p = 1; p <= paginas; p++) {
       this.doc.setPage(p);
-      this.linha(this.M, 285, this.W, [200, 200, 200]);
+      this.linha(this.M, 287, this.W, [200, 200, 200]);
       
       this.texto(
         `${config.empresa} · Voucher ${voucher.codigo}`,
         this.M,
-        290,
-        7.5,
+        291,
+        6.5,
         "normal",
         CORES.cinza
       );
       this.texto(
         `Página ${p} de ${paginas}`,
         this.L - this.M,
-        290,
-        7.5,
+        291,
+        6.5,
         "normal",
         CORES.cinza,
         "right"
