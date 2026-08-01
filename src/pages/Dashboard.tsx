@@ -16,7 +16,7 @@ import {
   parseISO,
   primeiraData,
   rotuloRelativo,
-  STATUS_META,
+  statusMeta,
   totalPessoas,
 } from "@/lib/utils";
 import { cn } from "@/utils/cn";
@@ -297,8 +297,8 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
                     {e.p.nome} · {totalPessoas(e.v)} pessoa(s) · {e.v.hotel || "sem hotel"}
                   </p>
                 </div>
-                <Selo className={STATUS_META[e.v.status].chip}>
-                  {STATUS_META[e.v.status].label}
+                <Selo className={statusMeta(e.v.status).chip}>
+                  {statusMeta(e.v.status).label}
                 </Selo>
                 <span className="hidden w-20 text-right text-xs font-bold text-slate-400 sm:block">
                   {rotuloRelativo(e.p.data)}
