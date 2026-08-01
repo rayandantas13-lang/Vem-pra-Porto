@@ -380,7 +380,7 @@ function limparVoucher(v) {
   if (!passeios.length) throw new Error('Informe pelo menos um passeio.');
 
   var status = texto(v.status || 'pendente', 20, true, 'Status');
-  if (['pendente', 'confirmado', 'concluido', 'cancelado'].indexOf(status) === -1)
+  if (['pendente', 'concluido', 'cancelado'].indexOf(status) === -1)
     throw new Error('Status inválido.');
 
   var codigo = texto(v.codigo, 30, true, 'Código').toUpperCase();

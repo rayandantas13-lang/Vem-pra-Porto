@@ -31,7 +31,6 @@ const CORES = {
 /** Cor do selo de status no PDF (combinando com as cores do app). */
 const CORES_STATUS: Record<StatusVoucher, [number, number, number]> = {
   pendente: [245, 158, 11], // âmbar
-  confirmado: [99, 102, 241], // índigo
   concluido: [16, 185, 129], // esmeralda
   cancelado: [148, 163, 184], // cinza
 };
@@ -325,7 +324,7 @@ class PDFVoucherBuilder {
       this.texto(item.value, x, this.y + 16.5, tamanho, "bold", cor, "center");
     });
 
-    this.y += 24;
+    this.y += 28;
 
     // Forma de pagamento
     if (voucher.formaPagamento) {
@@ -337,7 +336,7 @@ class PDFVoucherBuilder {
         "normal",
         CORES.cinza
       );
-      this.y += 5;
+      this.y += 7;
     }
   }
 
