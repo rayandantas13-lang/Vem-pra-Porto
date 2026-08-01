@@ -209,11 +209,11 @@ class PDFVoucherBuilder {
       
       // Valor
       const lines = this.doc.splitTextToSize(item.value, colWidth - 8) as string[];
-      this.texto(lines[0] || "—", x + 4, yPos + 12, 9, "bold", CORES.escuro);
-      
-      // Se tiver mais linhas
-      if (lines.length > 1) {
-        this.texto(lines[1], x + 4, yPos + 17, 8, "normal", CORES.cinza);
+      if (lines.length <= 1) {
+        this.texto(lines[0] || "—", x + 4, yPos + 13, 9, "bold", CORES.escuro);
+      } else {
+        this.texto(lines[0], x + 4, yPos + 11, 9, "bold", CORES.escuro);
+        this.texto(lines[1], x + 4, yPos + 16, 7.5, "normal", CORES.cinza);
       }
     });
 
