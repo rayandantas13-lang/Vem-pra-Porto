@@ -50,7 +50,7 @@ const voucherExemplo: Voucher = {
   entrada: 0,
   formaPagamento: "",
   observacoes: "",
-  status: "confirmado",
+  status: "concluido",
   criadoEm: new Date().toISOString(),
 };
 

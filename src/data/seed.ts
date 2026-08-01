@@ -54,7 +54,7 @@ export function criarVouchersExemplo(): Voucher[] {
       entrada: 100,
       formaPagamento: "PIX na entrada, restante no dia do passeio",
       observacoes: "",
-      status: "confirmado",
+      status: "concluido",
       criadoEm: d(-3),
     },
     {
@@ -73,7 +73,7 @@ export function criarVouchersExemplo(): Voucher[] {
       entrada: 300,
       formaPagamento: "Cartão em 2x",
       observacoes: "Criança de 8 anos no grupo.",
-      status: "confirmado",
+      status: "concluido",
       criadoEm: d(-1),
     },
     {

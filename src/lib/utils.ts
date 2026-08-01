@@ -169,11 +169,6 @@ export const STATUS_META: Record<
     chip: "bg-amber-50 text-amber-700 ring-amber-200",
     dot: "bg-amber-500",
   },
-  confirmado: {
-    label: "Confirmado",
-    chip: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-    dot: "bg-indigo-500",
-  },
   concluido: {
     label: "Concluído",
     chip: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -188,7 +183,6 @@ export const STATUS_META: Record<
 
 export const STATUS_LISTA: StatusVoucher[] = [
   "pendente",
-  "confirmado",
   "concluido",
   "cancelado",
 ];

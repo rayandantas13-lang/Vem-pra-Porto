@@ -277,7 +277,7 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
                 className="lg:w-48"
               >
                 <option value="todos">Todos os status</option>
-                {(["pendente", "confirmado", "concluido", "cancelado"] as const).map((s) => (
+                {(["pendente", "concluido", "cancelado"] as const).map((s) => (
                   <option key={s} value={s}>
                     {STATUS_META[s].label}
                   </option>

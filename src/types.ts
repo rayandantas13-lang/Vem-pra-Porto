@@ -37,7 +37,7 @@ export interface Passeio {
   local: string;
 }
 
-export type StatusVoucher = "pendente" | "confirmado" | "concluido" | "cancelado";
+export type StatusVoucher = "pendente" | "concluido" | "cancelado";
 
 export interface Voucher {
   id: ID;
