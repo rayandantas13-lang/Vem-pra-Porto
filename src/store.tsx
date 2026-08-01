@@ -13,19 +13,34 @@ import { CONFIG_PADRAO } from "@/data/seed";
 import { uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
+const TEMPO_OCIOSO_MS = 30 * 60 * 1000;
 
+/**
+ * A sessão fica somente na aba atual. Não usamos localStorage para que um token
+ * de acesso não continue gravado no computador depois que o navegador fechar.
+ */
 function lerSessao(): Sessao | null {
   try {
-    const raw = localStorage.getItem(SESSAO_KEY);
-    return raw ? (JSON.parse(raw) as Sessao) : null;
+    // Descarta sessões persistentes criadas por versões antigas.
+    localStorage.removeItem(SESSAO_KEY);
+    const raw = sessionStorage.getItem(SESSAO_KEY);
+    if (!raw) return null;
+    const sessao = JSON.parse(raw) as Sessao;
+    if (!sessao.token || new Date(sessao.expiraEm).getTime() <= Date.now()) {
+      sessionStorage.removeItem(SESSAO_KEY);
+      return null;
+    }
+    return sessao;
   } catch {
+    sessionStorage.removeItem(SESSAO_KEY);
     return null;
   }
 }
 
 function gravarSessao(s: Sessao | null) {
-  if (s) localStorage.setItem(SESSAO_KEY, JSON.stringify(s));
-  else localStorage.removeItem(SESSAO_KEY);
+  localStorage.removeItem(SESSAO_KEY);
+  if (s) sessionStorage.setItem(SESSAO_KEY, JSON.stringify(s));
+  else sessionStorage.removeItem(SESSAO_KEY);
 }
 
 export interface Toast {
@@ -99,6 +114,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!sessao) return;
+
+    let ultimaAtividade = Date.now();
+    const registrarAtividade = () => {
+      ultimaAtividade = Date.now();
+    };
+    const eventos: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "touchstart", "scroll"];
+    eventos.forEach((evento) => window.addEventListener(evento, registrarAtividade, { passive: true }));
+
+    const relogio = window.setInterval(() => {
+      const expirou = new Date(sessao.expiraEm).getTime() <= Date.now();
+      const ociosa = Date.now() - ultimaAtividade >= TEMPO_OCIOSO_MS;
+      if (!expirou && !ociosa) return;
+
+      void api.sair(sessao.token).catch(() => {});
+      gravarSessao(null);
+      setSessao(null);
+      setVouchers([]);
+      setConfig(CONFIG_PADRAO);
+      notificar(
+        expirou ? "Sua sessão expirou. Entre novamente." : "Sessão encerrada por inatividade.",
+        "info",
+      );
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(relogio);
+      eventos.forEach((evento) => window.removeEventListener(evento, registrarAtividade));
+    };
+  }, [sessao, notificar]);
+
+  useEffect(() => {
+    if (!sessao) return;
     let cancelado = false;
     setCarregando(true);
     setErroCarga("");
@@ -157,6 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         gravarSessao(null);
         setSessao(null);
         setVouchers([]);
+        setConfig(CONFIG_PADRAO);
       },
       recarregar: () => setRecarga((n) => n + 1),
 

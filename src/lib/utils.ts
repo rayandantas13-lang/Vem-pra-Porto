@@ -1,7 +1,10 @@
 import type { Config, Passeio, StatusVoucher, Voucher } from "@/types";
 
-export const uid = () =>
-  Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+export const uid = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+};
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -225,9 +228,12 @@ export const totalPessoas = (v: Voucher) =>
 
 export const gerarCodigo = (prefixo = "VP") => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return `${prefixo}-${s}`;
+  const numeros = new Uint32Array(5);
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function")
+    crypto.getRandomValues(numeros);
+  else for (let i = 0; i < numeros.length; i++) numeros[i] = Math.floor(Math.random() * 2 ** 32);
+  const codigo = [...numeros].map((n) => chars[n % chars.length]).join("");
+  return `${prefixo}-${codigo}`;
 };
 
 export const passeioVazio = (data = hoje()): Passeio => ({

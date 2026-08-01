@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import type { Sessao } from "@/types";
 import { api, modoLocal, origemApi, urlDoAmbiente } from "@/api";
-import { ADMIN_PADRAO } from "@/localBackend";
 import { Icon } from "@/components/Icon";
 import { Aviso, Botao, Campo, Entrada } from "@/components/ui";
 import { cn } from "@/utils/cn";
 
-const vazio = { nome: "", email: "", usuario: "", senha: "", confirmar: "" };
+const vazio = {
+  nome: "",
+  email: "",
+  usuario: "",
+  senha: "",
+  confirmar: "",
+  chaveInstalacao: "",
+};
 
 export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
   const [usuario, setUsuario] = useState("");
@@ -43,7 +49,9 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
 
   const criarAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.senha.length < 6) return setErro("A senha precisa ter pelo menos 6 caracteres.");
+    if (form.senha.length < 10) return setErro("A senha precisa ter pelo menos 10 caracteres.");
+    if (!local && !form.chaveInstalacao.trim())
+      return setErro("Informe a chave de instalação gerada no Apps Script.");
     if (form.senha !== form.confirmar) return setErro("As senhas não conferem.");
     setCarregando(true);
     setErro("");
@@ -60,6 +68,7 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
           email: form.email.trim(),
           usuario: form.usuario.trim(),
           senha: form.senha,
+          chaveInstalacao: form.chaveInstalacao.trim(),
         }),
       );
     } catch (err) {
@@ -115,6 +124,18 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
                 Crie o administrador principal. Depois disso, novos usuários só podem ser
                 cadastrados dentro de Configurações.
               </Aviso>
+              {!local && (
+                <Campo rotulo="Chave de instalação *" dica="execute obterChaveInstalacao() no Apps Script">
+                  <Entrada
+                    required
+                    type="password"
+                    value={form.chaveInstalacao}
+                    onChange={(e) => setForm({ ...form, chaveInstalacao: e.target.value })}
+                    placeholder="Chave exibida no registro de execução"
+                    autoComplete="off"
+                  />
+                </Campo>
+              )}
               <Campo rotulo="Nome completo *">
                 <Entrada
                   required
@@ -146,9 +167,10 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
                   <Entrada
                     required
                     type="password"
+                    minLength={10}
                     value={form.senha}
                     onChange={(e) => setForm({ ...form, senha: e.target.value })}
-                    placeholder="mín. 6"
+                    placeholder="mín. 10"
                     autoComplete="new-password"
                   />
                 </Campo>
@@ -156,6 +178,7 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
                   <Entrada
                     required
                     type="password"
+                    minLength={10}
                     value={form.confirmar}
                     onChange={(e) => setForm({ ...form, confirmar: e.target.value })}
                     placeholder="repita"
@@ -214,26 +237,6 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
               <Botao icone="logout" carregando={carregando} className="w-full py-3">
                 Entrar
               </Botao>
-
-              {local && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUsuario(ADMIN_PADRAO.usuario);
-                    setSenha(ADMIN_PADRAO.senha);
-                    setErro("");
-                  }}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl bg-indigo-50 px-3.5 py-3 text-left ring-1 ring-indigo-100 transition hover:bg-indigo-100"
-                >
-                  <span className="flex items-center gap-2 text-xs text-slate-600">
-                    <Icon name="key" className="size-4 shrink-0 text-indigo-600" />
-                    Acesso padrão:{" "}
-                    <b className="font-mono text-slate-900">{ADMIN_PADRAO.usuario}</b> /{" "}
-                    <b className="font-mono text-slate-900">{ADMIN_PADRAO.senha}</b>
-                  </span>
-                  <span className="shrink-0 text-[11px] font-bold text-indigo-700">Preencher</span>
-                </button>
-              )}
 
               {temAdmin === false && (
                 <button

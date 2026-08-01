@@ -10,8 +10,7 @@ import { uid } from "@/lib/utils";
  */
 
 const DB_KEY = "vempraporto.local.v2";
-
-export const ADMIN_PADRAO = { usuario: "admin", senha: "admin123" };
+const ADMIN_DEMO_LEGADO = { usuario: "admin", senhaHash: "local_oqacq9_17" };
 
 interface UsuarioLocal extends Usuario {
   senhaHash: string;
@@ -36,18 +35,7 @@ function hash(senha: string) {
 
 function criarBanco(): BancoLocal {
   return {
-    usuarios: [
-      {
-        id: uid(),
-        nome: "Administrador",
-        email: "admin@empresa.com",
-        usuario: ADMIN_PADRAO.usuario,
-        papel: "admin",
-        ativo: true,
-        criadoEm: new Date().toISOString(),
-        senhaHash: hash(ADMIN_PADRAO.senha),
-      },
-    ],
+    usuarios: [],
     vouchers: criarVouchersExemplo(),
     config: CONFIG_PADRAO,
     sessoes: [],
@@ -63,14 +51,30 @@ function ler(): BancoLocal {
       return novo;
     }
     const p = JSON.parse(raw) as BancoLocal;
-    if (!p.usuarios?.length) {
-      const novo = criarBanco();
-      gravar(novo);
-      return novo;
+    if (!Array.isArray(p.usuarios)) p.usuarios = [];
+    if (!Array.isArray(p.sessoes)) p.sessoes = [];
+
+    // Remove a credencial pública que existia apenas nas versões antigas de demonstração,
+    // preservando vouchers e configurações locais já criados.
+    const idsLegados = new Set(
+      p.usuarios
+        .filter(
+          (u) =>
+            u.usuario === ADMIN_DEMO_LEGADO.usuario &&
+            u.email === "admin@empresa.com" &&
+            u.senhaHash === ADMIN_DEMO_LEGADO.senhaHash,
+        )
+        .map((u) => u.id),
+    );
+    if (idsLegados.size) {
+      p.usuarios = p.usuarios.filter((u) => !idsLegados.has(u.id));
+      p.sessoes = p.sessoes.filter((s) => !idsLegados.has(s.usuarioId));
     }
-    // mescla com o padrão para que campos novos (ex.: mensagemVoucher) existam em bancos antigos
+
+    // Mescla com o padrão para que campos novos existam em bancos antigos.
     p.config = { ...CONFIG_PADRAO, ...(p.config ?? {}) };
     if (!p.vouchers) p.vouchers = [];
+    gravar(p);
     return p;
   } catch {
     const novo = criarBanco();
@@ -107,7 +111,7 @@ function exigirAdmin(u: UsuarioLocal) {
 
 function novaSessao(db: BancoLocal, u: UsuarioLocal): Sessao {
   const token = `local-${uid()}-${uid()}`;
-  const expiraEm = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+  const expiraEm = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
   db.sessoes = db.sessoes.filter((s) => new Date(s.expiraEm).getTime() > Date.now());
   db.sessoes.push({ token, usuarioId: u.id, expiraEm });
   return { token, usuario: publico(u), expiraEm };
@@ -133,18 +137,25 @@ export async function requisicaoLocal<T>(payload: Record<string, unknown>): Prom
       break;
 
     case "criarPrimeiroAdmin": {
+      if (db.usuarios.length) throw new Error("O primeiro usuário já foi criado.");
+      const nome = String(payload.nome || "").trim();
+      const email = String(payload.email || "").trim().toLowerCase();
       const usuario = String(payload.usuario || "").trim().toLowerCase();
-      if (db.usuarios.some((u) => u.usuario.toLowerCase() === usuario))
-        throw new Error("Este usuário já existe.");
+      const senha = String(payload.senha || "");
+      if (nome.length < 2) throw new Error("Informe o nome completo.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("E-mail inválido.");
+      if (!/^[a-z0-9._-]{3,50}$/.test(usuario))
+        throw new Error("O usuário deve ter de 3 a 50 caracteres, sem espaços.");
+      if (senha.length < 10) throw new Error("A senha precisa ter pelo menos 10 caracteres.");
       const novo: UsuarioLocal = {
         id: uid(),
-        nome: String(payload.nome || "").trim(),
-        email: String(payload.email || "").trim().toLowerCase(),
+        nome,
+        email,
         usuario,
         papel: "admin",
         ativo: true,
         criadoEm: new Date().toISOString(),
-        senhaHash: hash(String(payload.senha || "")),
+        senhaHash: hash(senha),
       };
       db.usuarios.push(novo);
       saida = novaSessao(db, novo);
@@ -211,6 +222,8 @@ export async function requisicaoLocal<T>(payload: Record<string, unknown>): Prom
         senha: string;
         papel: Usuario["papel"];
       };
+      if (String(dados.senha || "").length < 10)
+        throw new Error("A senha precisa ter pelo menos 10 caracteres.");
       const usuario = String(dados.usuario).trim().toLowerCase();
       const email = String(dados.email).trim().toLowerCase();
       if (
