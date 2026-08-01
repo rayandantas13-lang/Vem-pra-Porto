@@ -409,7 +409,7 @@ export default function Configuracoes() {
               />
             </Campo>
 
-            <Campo rotulo="Ponto de retorno / informações" className="sm:col-span-2">
+            <Campo rotulo="Ponto de encontro" className="sm:col-span-2">
               <AreaTexto
                 rows={3}
                 value={form.pontoRetorno || ""}
