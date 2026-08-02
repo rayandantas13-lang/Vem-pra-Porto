@@ -268,7 +268,17 @@ function Painel() {
               {erroCarga && (
                 <div className="flex items-start gap-2.5 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-rose-200">
                   <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
-                  <span>{erroCarga}</span>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p>{erroCarga}</p>
+                    {ehAdmin && (
+                      <button
+                        onClick={() => ir("config")}
+                        className="text-xs font-bold text-rose-800 underline underline-offset-2 hover:text-rose-950"
+                      >
+                        Abrir Configurações → Banco de dados e testar a conexão
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
               {pagina()}
