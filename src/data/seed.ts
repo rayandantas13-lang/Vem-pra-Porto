@@ -21,12 +21,7 @@ export const CONFIG_PADRAO: Config = {
     { id: "s6", nome: "City Tour Porto Seguro", preco: 120 },
   ],
 
-  /* ===== NOVOS CAMPOS CONFIGURÁVEIS (do seu modelo de PDF) ===== */
-  incluso: "• Transfer ida e volta em van climatizada\n• Guia de turismo credenciado\n• Seguro de viagem\n• Água mineral durante o trajeto",
-  naoIncluso: "• Alimentos e bebidas extras\n• Ingressos em atrações opcionais\n• Despesas pessoais\n• Gorjetas",
-  oQueLevar: "• Protetor solar, boné/chapéu\n• Roupa de banho + toalha\n• Câmera / celular carregado\n• Dinheiro / cartão para compras",
-  pontoRetorno: "Retorno previsto no mesmo ponto de embarque (Hotel / Pousada). Horário aproximado de retorno: conforme roteiro.",
-  informacoesAdicionais: "Em caso de atraso ou imprevisto, entre em contato com nossa central pelo WhatsApp da empresa. Obrigado por escolher a Vem Pra Porto!",
+
 };
 
 export function criarVouchersExemplo(): Voucher[] {

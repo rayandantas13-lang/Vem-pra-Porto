@@ -341,60 +341,33 @@ class PDFVoucherBuilder {
   }
 
   // 6. INSTRUÇÕES E INFORMAÇÕES (grade 2 colunas + observações)
-  private construirInstrucoes(voucher: Voucher, config: Config) {
+  private construirInstrucoes(voucher: Voucher) {
     const colGap = 4;
     const halfCol = (this.W - colGap) / 2;
-
-    const addSection = (
-      titulo: string,
-      conteudo: string | undefined,
-      x: number,
-      larg: number,
-      maxLinhas = 99,
-    ): number => {
+    const addSection = (titulo: string, conteudo: string | undefined, x: number, larg: number): number => {
       if (!conteudo?.trim()) return 0;
-      const lines = (this.doc.splitTextToSize(conteudo.trim(), larg - 4) as string[]).slice(0, maxLinhas);
-      if (!lines.length) return 0;
-
+      const lines = (this.doc.splitTextToSize(conteudo.trim(), larg - 4) as string[]).slice(0, 5);
       this.texto(titulo, x, this.y, 7.5, "bold", CORES.cinza);
-      let ly = this.y + 5;
-
-      this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8.2);
-      this.doc.setTextColor(...CORES.escuro);
-
-      lines.forEach((t) => {
-        this.doc.text(t, x + 1, ly);
-        ly += 4;
-      });
-      return 5 + lines.length * 4 + 2;
+      lines.forEach((t, i) => this.texto(t, x + 1, this.y + 5 + i * 4, 8.2, "normal", CORES.escuro));
+      return 7 + lines.length * 4;
     };
-
-    const linhaDupla = (
-      t1: string, c1: string | undefined,
-      t2: string, c2: string | undefined,
-      maxLinhas2 = 99,
-    ) => {
-      if (!c1?.trim() && !c2?.trim()) return;
-      this.checkPageBreak(14);
+    (voucher.passeios || []).forEach((p) => {
+      if (!p.local && !p.oQueLevar && !p.informacoesAdicionais) return;
+      this.checkPageBreak(15);
+      this.texto(`INFORMAÇÕES — ${p.nome || "PASSEIO"}`, this.M, this.y, 8, "bold", CORES.primaria);
+      this.y += 5;
       const yIni = this.y;
-      const a1 = addSection(t1, c1, this.M, halfCol);
-      const a2 = addSection(t2, c2, this.M + halfCol + colGap, halfCol, maxLinhas2);
-      this.y = yIni + Math.max(a1, a2) + 1;
-    };
-
-    // Incluso + Não incluso
-    linhaDupla("INCLUSO NO PASSEIO", config.incluso, "NÃO INCLUSO", config.naoIncluso);
-
-    // O que levar + Ponto de retorno
-    linhaDupla("O QUE LEVAR", config.oQueLevar, "PONTO DE ENCONTRO", config.pontoRetorno);
-
-    // Informações adicionais + Observações do voucher (máx. 3 linhas)
-    linhaDupla(
-      "INFORMAÇÕES ADICIONAIS", config.informacoesAdicionais,
-      "OBSERVAÇÕES", voucher.observacoes,
-      3,
-    );
+      const a = addSection("O QUE LEVAR", p.oQueLevar, this.M, halfCol);
+      const b = addSection("PONTO DE ENCONTRO", p.local, this.M + halfCol + colGap, halfCol);
+      this.y = yIni + Math.max(a, b) + 1;
+      const extra = addSection("INFORMAÇÕES ADICIONAIS", p.informacoesAdicionais, this.M, this.W);
+      if (extra) this.y += extra + 1;
+    });
+    if (voucher.observacoes?.trim()) {
+      this.checkPageBreak(14);
+      const h = addSection("OBSERVAÇÕES", voucher.observacoes, this.M, this.W);
+      this.y += h + 1;
+    }
   }
 
   // 7. POLÍTICA DE CANCELAMENTO (caixa única; compacta se preciso p/ 1 página)
@@ -492,7 +465,7 @@ class PDFVoucherBuilder {
     this.construirPagamento(voucher);
 
     // 6. Instruções e Informações (inclui observações)
-    this.construirInstrucoes(voucher, config);
+    this.construirInstrucoes(voucher);
 
     // 7. Política de Cancelamento
     this.construirPoliticaCancelamento(config);
