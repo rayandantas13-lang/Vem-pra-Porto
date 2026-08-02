@@ -49,7 +49,11 @@ var CONFIG_PADRAO = {
 
 /* ---------------- Entrada HTTP ---------------- */
 
-/** GET não executa ações nem recebe credenciais. */
+/**
+ * GET não executa ações nem recebe credenciais: serve apenas para o painel
+ * confirmar que a implantação está no ar. Se o navegador receber HTML ou 404
+ * aqui, a implantação está desatualizada ou não está aberta a "Qualquer pessoa".
+ */
 function doGet() {
   return responder({ ok: true, data: { servico: 'Controle de Vouchers', versao: SEGURANCA.versao } });
 }

@@ -4,12 +4,14 @@ import type { Config, Servico, Usuario, Voucher } from "@/types";
 import {
   api,
   definirUrlApi,
+  diagnosticarUrl,
   migrarParaSheets,
   modoLocal,
   origemApi,
-  testarUrl,
+  urlAmbienteBruta,
   urlDoAmbiente,
   urlManual,
+  type PassoDiagnostico,
 } from "@/api";
 import { exportarBancoLocal, limparBancoLocal } from "@/localBackend";
 import { Icon } from "@/components/Icon";
@@ -70,12 +72,16 @@ export default function Configuracoes() {
   const set = (p: Partial<Config>) => setForm((f) => ({ ...f, ...p }));
 
   const envUrl = urlDoAmbiente();
+  const envBruta = urlAmbienteBruta();
+  /** A variável do GitHub existe mas está num formato que o Google recusa. */
+  const envInvalida = !!envBruta && !envUrl;
   const [url, setUrl] = useState(urlManual());
   const [origem, setOrigem] = useState(origemApi());
   const [testando, setTestando] = useState(false);
   const [migrando, setMigrando] = useState(false);
   const [msgConexao, setMsgConexao] = useState("");
   const [erroConexao, setErroConexao] = useState("");
+  const [passos, setPassos] = useState<PassoDiagnostico[]>([]);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [carregandoUsuarios, setCarregandoUsuarios] = useState(false);
@@ -118,13 +124,13 @@ export default function Configuracoes() {
     setTestando(true);
     setMsgConexao("");
     setErroConexao("");
+    setPassos([]);
     try {
-      const r = await testarUrl(url || envUrl);
-      setMsgConexao(
-        r.temAdmin
-          ? "Conexão funcionando! A planilha já tem administrador cadastrado."
-          : "Conexão funcionando! A planilha está vazia — o primeiro administrador será criado no próximo login.",
-      );
+      const resultado = await diagnosticarUrl(url || envBruta || envUrl);
+      setPassos(resultado);
+      const ultimo = resultado[resultado.length - 1];
+      if (resultado.every((p) => p.ok)) setMsgConexao(ultimo.detalhe);
+      else setErroConexao("A conexão falhou. Veja abaixo em qual etapa o Google recusou.");
     } catch (e) {
       setErroConexao(e instanceof Error ? e.message : "Falha ao testar a conexão.");
     } finally {
@@ -135,15 +141,19 @@ export default function Configuracoes() {
   const salvarUrl = () => {
     try {
       definirUrlApi(url);
+      const salva = urlManual();
+      setUrl(salva);
       setOrigem(origemApi());
       setErroConexao("");
+      setPassos([]);
       setMsgConexao(
-        url
+        salva
           ? "URL salva! Saia e entre novamente para carregar os dados do Google Sheets."
           : "URL removida. O sistema volta a usar a variável do GitHub ou o modo local.",
       );
     } catch (e) {
       setMsgConexao("");
+      setPassos([]);
       setErroConexao(e instanceof Error ? e.message : "URL inválida.");
     }
   };
@@ -489,6 +499,18 @@ export default function Configuracoes() {
             </div>
           )}
 
+          {envInvalida && (
+            <Aviso tom="erro">
+              A variável <code className="font-mono">VITE_APPS_SCRIPT_URL</code> do GitHub está em
+              um formato que o Google recusa e por isso foi ignorada:{" "}
+              <span className="font-mono break-all">{envBruta}</span>. Ela precisa ser o endereço
+              da implantação, no formato{" "}
+              <span className="font-mono">https://script.google.com/macros/s/SEU_ID/exec</span> —
+              sem <code className="font-mono">/u/0/</code>, sem <code className="font-mono">/dev</code>{" "}
+              e sem parâmetros depois de <code className="font-mono">/exec</code>.
+            </Aviso>
+          )}
+
           <Campo
             rotulo="URL do aplicativo web do Apps Script"
             dica={envUrl ? "sobrescreve a variável do GitHub" : "termina com /exec"}
@@ -509,7 +531,7 @@ export default function Configuracoes() {
               variante="contorno"
               icone="plug"
               carregando={testando}
-              disabled={!url && !envUrl}
+              disabled={!url && !envBruta}
               onClick={testar}
             >
               Testar conexão
@@ -535,6 +557,26 @@ export default function Configuracoes() {
 
           {msgConexao && <Aviso tom="ok">{msgConexao}</Aviso>}
           {erroConexao && <Aviso tom="erro">{erroConexao}</Aviso>}
+
+          {passos.length > 0 && (
+            <ol className="space-y-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+              {passos.map((p) => (
+                <li key={p.titulo} className="flex items-start gap-2.5 text-xs">
+                  <Icon
+                    name={p.ok ? "check" : "alert"}
+                    className={cn(
+                      "mt-0.5 size-3.5 shrink-0",
+                      p.ok ? "text-emerald-600" : "text-rose-600",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-700">{p.titulo}</p>
+                    <p className="leading-relaxed break-words text-slate-500">{p.detalhe}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
 
           {modoLocal() && (
             <Aviso tom="alerta">

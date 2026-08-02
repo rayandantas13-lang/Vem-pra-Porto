@@ -87,6 +87,46 @@ Entre como admin em **Configurações → Banco de dados**, cole a URL, clique e
 
 Depois use **Enviar vouchers locais para a planilha** para migrar o que já foi criado no modo local.
 
+### A URL precisa estar exatamente neste formato
+
+```text
+https://script.google.com/macros/s/SEU_ID/exec
+```
+
+O painel corrige sozinho os desvios mais comuns (barra no fim, `?usp=sharing`, `/u/0/`, `/u/1/` e o formato do Workspace), mas vale conferir na origem:
+
+| Não use | Por quê |
+| --- | --- |
+| `.../macros/u/0/s/SEU_ID/exec` | O `/u/0/` amarra a URL à conta logada no seu navegador e quebra para todo mundo |
+| `.../macros/s/SEU_ID/dev` | É a URL de teste: só abre para o dono do script, logado |
+| A URL copiada da barra de endereços | Costuma vir com parâmetros extras |
+
+## Erro 404 em `script.googleusercontent.com/macros/echo`
+
+Esse é o erro mais comum e **quase nunca é problema do site**. Entender o caminho ajuda:
+
+1. o painel chama `https://script.google.com/macros/s/SEU_ID/exec`;
+2. o Google responde `302` e manda o navegador para um endereço de uso único em `https://script.googleusercontent.com/macros/echo?user_content_key=...`;
+3. o conteúdo (o JSON) é entregue nesse segundo endereço.
+
+A troca de domínio é normal e esperada — é assim que o Google separa conteúdo gerado por usuários. Quando aparece **404** nessa segunda etapa, significa que o Google aceitou a chamada mas não encontrou uma implantação válida para responder.
+
+Vá em **Configurações → Banco de dados → Testar conexão**: o painel mostra em qual das etapas a conexão quebrou. Depois siga a causa correspondente:
+
+| Causa | Como resolver |
+| --- | --- |
+| **Implantação desatualizada** (mais comum) | No Apps Script: **Implantar → Gerenciar implantações → ícone de lápis (✏️) → Versão: Nova versão → Implantar**. Só salvar o `Code.gs` não republica nada |
+| **Acesso restrito** | Na mesma tela: **Executar como: Eu** e **Quem tem acesso: Qualquer pessoa**. A opção "Qualquer pessoa com Conta do Google" **não** funciona aqui |
+| **URL com `/u/0/` ou `/u/1/`** | Remova esse trecho. O painel já faz isso sozinho, mas corrija também a variável `VITE_APPS_SCRIPT_URL` no GitHub |
+| **URL de teste `/dev`** | Use a URL da implantação, terminada em `/exec` |
+| **Implantação excluída ou arquivada** | Crie uma **Nova implantação** e atualize a URL nos dois lugares |
+| **Várias contas Google logadas** | Teste numa janela anônima. Se funcionar, o problema é a troca de conta no navegador |
+| **Falha momentânea do Google** | O endereço `/macros/echo` é de uso único e às vezes falha sem motivo. O painel já repete sozinho as chamadas seguras uma vez; se persistir, aguarde alguns minutos |
+
+Depois de reimplantar, **saia e entre novamente** no painel para recarregar os dados.
+
+> Se você alterou o `Code.gs`, a reimplantação com **Nova versão** é obrigatória. É o passo esquecido na maioria dos casos de 404.
+
 ## Perfis
 
 | Recurso | Administrador | Operador |

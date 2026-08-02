@@ -8,22 +8,106 @@ interface RespostaApi<T = unknown> {
 }
 
 const URL_KEY = "vempraporto.apps_script_url";
+const HOST_SCRIPT = "script.google.com";
+/**
+ * O Apps Script nunca devolve o conteúdo direto de script.google.com: ele
+ * responde 302 e entrega o JSON em um endereço de uso único em
+ * script.googleusercontent.com/macros/echo. Quando esse segundo endereço
+ * responde 404, o problema está na implantação (versão antiga, acesso
+ * restrito ou URL presa a uma conta), não no painel.
+ */
+const HOST_CONTEUDO = "script.googleusercontent.com";
 
-function normalizarUrlAppsScript(valor: unknown) {
-  const v = typeof valor === "string" ? valor.trim().replace(/\/$/, "") : "";
-  return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(v) ? v : "";
+/** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
+const ACOES_REPETIVEIS = new Set([
+  "status",
+  "eu",
+  "dados",
+  "listarUsuarios",
+  "salvarVoucher",
+  "removerVoucher",
+  "salvarConfig",
+  "alternarUsuario",
+]);
+
+class ErroApi extends Error {
+  readonly temporario: boolean;
+
+  constructor(mensagem: string, temporario = false) {
+    super(mensagem);
+    this.name = "ErroApi";
+    this.temporario = temporario;
+  }
+}
+
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Aceita todos os formatos de URL que o Google entrega ao implantar e devolve
+ * sempre a forma canônica terminada em /exec.
+ *
+ * Formatos aceitos:
+ * - https://script.google.com/macros/s/<id>/exec
+ * - https://script.google.com/macros/u/0/s/<id>/exec        (conta ativa)
+ * - https://script.google.com/a/macros/<dominio>/s/<id>/exec (Workspace)
+ * - https://script.google.com/a/<dominio>/macros/s/<id>/exec (Workspace antigo)
+ *
+ * O trecho "/u/0/" ou "/u/1/" identifica a conta logada no navegador e é a
+ * causa mais comum do erro 404 em script.googleusercontent.com; ele é sempre
+ * removido. Parâmetros extras (?usp=sharing) e barras finais também caem.
+ */
+export function normalizarUrlAppsScript(valor: unknown): string {
+  if (typeof valor !== "string") return "";
+  const bruto = valor.trim().replace(/^[<"'\s]+|[>"'\s]+$/g, "");
+  if (!bruto) return "";
+
+  let alvo: URL;
+  try {
+    alvo = new URL(bruto);
+  } catch {
+    return "";
+  }
+  if (alvo.protocol !== "https:" || alvo.hostname !== HOST_SCRIPT) return "";
+
+  const caminho = alvo.pathname.replace(/\/u\/\d+\//g, "/").replace(/\/+$/, "");
+
+  const comDominio = caminho.match(
+    /^\/a\/(?:macros\/)?([^/]+)\/(?:macros\/)?s\/([A-Za-z0-9_-]+)\/exec$/,
+  );
+  if (comDominio) {
+    return `https://${HOST_SCRIPT}/a/macros/${comDominio[1]}/s/${comDominio[2]}/exec`;
+  }
+
+  const simples = caminho.match(/^\/macros\/s\/([A-Za-z0-9_-]+)\/exec$/);
+  if (simples) return `https://${HOST_SCRIPT}/macros/s/${simples[1]}/exec`;
+
+  return "";
+}
+
+/** A URL de teste (/dev) só abre para o dono logado e nunca funciona no painel. */
+export function ehUrlDeTeste(valor: string) {
+  return /^https:\/\/script\.google\.com\/.+\/dev\/?$/.test(valor.trim());
+}
+
+/** Valor cru da variável do GitHub — usado para avisar quando ela está inválida. */
+export function urlAmbienteBruta() {
+  const valor = import.meta.env.VITE_APPS_SCRIPT_URL;
+  return typeof valor === "string" ? valor.trim() : "";
 }
 
 /** URL vinda da variável do repositório GitHub (injetada no build pelo Vite). */
 export function urlDoAmbiente() {
-  return normalizarUrlAppsScript(import.meta.env.VITE_APPS_SCRIPT_URL);
+  return normalizarUrlAppsScript(urlAmbienteBruta());
 }
 
 /** URL salva manualmente pelo administrador neste navegador. */
 export function urlManual() {
   const salva = localStorage.getItem(URL_KEY) || "";
+  if (!salva) return "";
   const segura = normalizarUrlAppsScript(salva);
-  if (salva && !segura) localStorage.removeItem(URL_KEY);
+  // Corrige no armazenamento URLs antigas com "/u/1/" ou parâmetros extras.
+  if (!segura) localStorage.removeItem(URL_KEY);
+  else if (segura !== salva) localStorage.setItem(URL_KEY, segura);
   return segura;
 }
 
@@ -38,6 +122,10 @@ export function definirUrlApi(url: string) {
     localStorage.removeItem(URL_KEY);
     return;
   }
+  if (ehUrlDeTeste(informada))
+    throw new Error(
+      "Essa é a URL de teste (/dev), que só abre para o dono da conta. Use a URL da implantação, terminada em /exec.",
+    );
   const segura = normalizarUrlAppsScript(informada);
   if (!segura) throw new Error("Use uma URL válida do Apps Script terminada em /exec.");
   localStorage.setItem(URL_KEY, segura);
@@ -55,35 +143,105 @@ export function modoLocal() {
   return !urlApi();
 }
 
-async function enviar<T>(url: string, payload: Record<string, unknown>): Promise<T> {
+/* ---------------- Transporte ---------------- */
+
+function opcoes(payload?: Record<string, unknown>): RequestInit {
+  return {
+    method: payload ? "POST" : "GET",
+    // text/plain evita o preflight (OPTIONS), que o Apps Script não responde.
+    headers: payload ? { "Content-Type": "text/plain;charset=utf-8" } : undefined,
+    body: payload ? JSON.stringify(payload) : undefined,
+    redirect: "follow",
+    cache: "no-store",
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  };
+}
+
+/** Traduz o código HTTP levando em conta em qual servidor do Google ele ocorreu. */
+function mensagemDeStatus(status: number, urlFinal: string) {
+  const noConteudo = urlFinal.includes(HOST_CONTEUDO);
+
+  if (status === 404 || status === 405) {
+    return noConteudo
+      ? "O Google recebeu a chamada, mas não entregou a resposta (404 em script.googleusercontent.com). " +
+          "Quase sempre é implantação desatualizada ou fechada: no Apps Script use Implantar → Gerenciar implantações → " +
+          "ícone de lápis → Versão: Nova versão, com “Executar como: Eu” e “Quem tem acesso: Qualquer pessoa”."
+      : `Implantação não encontrada (${status}). Confira se a URL termina em /exec e se a implantação continua ativa em “Gerenciar implantações”.`;
+  }
+  if (status === 401 || status === 403) {
+    return `Acesso negado pelo Google (${status}). Reimplante o aplicativo web com “Quem tem acesso: Qualquer pessoa” — a opção “Qualquer pessoa com conta do Google” não funciona no painel.`;
+  }
+  if (status === 429) {
+    return "O Apps Script recusou por excesso de chamadas (429). Aguarde alguns instantes e tente de novo.";
+  }
+  if (status >= 500) {
+    return `O Google Apps Script está instável no momento (${status}). Tente novamente em alguns instantes.`;
+  }
+  return `Falha na comunicação com a planilha (${status}).`;
+}
+
+function pareceHtml(corpo: string) {
+  const inicio = corpo.trimStart().slice(0, 200).toLowerCase();
+  return inicio.startsWith("<!doctype") || inicio.startsWith("<html") || inicio.includes("<head");
+}
+
+function ehTemporario(status: number) {
+  return status === 404 || status === 405 || status === 429 || status >= 500;
+}
+
+async function umaTentativa<T>(url: string, payload: Record<string, unknown>): Promise<T> {
   let resposta: Response;
   try {
-    resposta = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload),
-      redirect: "follow",
-      cache: "no-store",
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-    });
+    resposta = await fetch(url, opcoes(payload));
   } catch {
-    throw new Error(
-      "Não foi possível conectar ao Google Apps Script. Confira a URL e se a implantação está como “Qualquer pessoa”.",
+    throw new ErroApi(
+      "Não foi possível conectar ao Google Apps Script. Verifique a internet, a URL e se a implantação está publicada para “Qualquer pessoa”.",
+      true,
     );
   }
 
-  if (!resposta.ok) throw new Error(`Falha na comunicação com a planilha (${resposta.status}).`);
+  const urlFinal = resposta.url || url;
+  const corpo = await resposta.text().catch(() => "");
+
+  if (!resposta.ok)
+    throw new ErroApi(mensagemDeStatus(resposta.status, urlFinal), ehTemporario(resposta.status));
+
+  if (pareceHtml(corpo))
+    throw new ErroApi(
+      "O Google devolveu uma página de login no lugar dos dados. Reimplante o Apps Script com “Executar como: Eu” e “Quem tem acesso: Qualquer pessoa”.",
+    );
 
   let json: RespostaApi<T>;
   try {
-    json = (await resposta.json()) as RespostaApi<T>;
+    json = JSON.parse(corpo) as RespostaApi<T>;
   } catch {
-    throw new Error("Resposta inválida da API. Reimplante o Apps Script e tente novamente.");
+    throw new ErroApi("Resposta inválida da API. Reimplante o Apps Script e tente novamente.");
   }
 
-  if (!json.ok) throw new Error(json.error || "A planilha retornou um erro.");
+  if (!json || typeof json !== "object")
+    throw new ErroApi("Resposta inválida da API. Reimplante o Apps Script e tente novamente.");
+
+  if (!json.ok) throw new ErroApi(json.error || "A planilha retornou um erro.");
   return json.data as T;
+}
+
+/**
+ * O endereço de conteúdo do Apps Script é de uso único e falha esporadicamente.
+ * Ações que não duplicam dados são repetidas uma vez antes de mostrar o erro.
+ */
+async function enviar<T>(url: string, payload: Record<string, unknown>): Promise<T> {
+  const tentativas = ACOES_REPETIVEIS.has(String(payload.acao ?? "")) ? 2 : 1;
+
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      return await umaTentativa<T>(url, payload);
+    } catch (erro) {
+      const falha = erro instanceof ErroApi ? erro : null;
+      if (tentativa >= tentativas || !falha?.temporario) throw erro;
+      await esperar(900);
+    }
+  }
 }
 
 async function req<T>(payload: Record<string, unknown>): Promise<T> {
@@ -92,12 +250,93 @@ async function req<T>(payload: Record<string, unknown>): Promise<T> {
   return enviar<T>(url, payload);
 }
 
-/** Testa uma URL sem salvá-la. */
-export async function testarUrl(url: string) {
-  if (!url.trim()) throw new Error("Informe a URL do Apps Script.");
-  const v = normalizarUrlAppsScript(url);
-  if (!v) throw new Error("A URL precisa ser do Apps Script e terminar com /exec.");
-  return enviar<{ temAdmin: boolean }>(v, { acao: "status" });
+/* ---------------- Diagnóstico da conexão ---------------- */
+
+export interface PassoDiagnostico {
+  titulo: string;
+  ok: boolean;
+  detalhe: string;
+}
+
+/**
+ * Testa a URL sem salvá-la, separando cada etapa para mostrar exatamente onde
+ * a conexão quebra: formato da URL, publicação (GET) e leitura da planilha (POST).
+ */
+export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]> {
+  const bruto = valor.trim();
+  if (!bruto) throw new Error("Informe a URL do Apps Script.");
+  if (ehUrlDeTeste(bruto))
+    throw new Error(
+      "Essa é a URL de teste (/dev), que só abre para o dono da conta. Use a URL da implantação, terminada em /exec.",
+    );
+
+  const url = normalizarUrlAppsScript(bruto);
+  if (!url)
+    throw new Error(
+      "A URL precisa ser do Apps Script (script.google.com) e terminar com /exec.",
+    );
+
+  const passos: PassoDiagnostico[] = [
+    {
+      titulo: "Formato da URL",
+      ok: true,
+      detalhe:
+        url === bruto.replace(/\/+$/, "")
+          ? "Endereço no formato correto."
+          : `Endereço corrigido para ${url}`,
+    },
+  ];
+
+  try {
+    const resposta = await fetch(url, opcoes());
+    const corpo = await resposta.text().catch(() => "");
+    if (!resposta.ok) {
+      passos.push({
+        titulo: "Publicação (GET)",
+        ok: false,
+        detalhe: mensagemDeStatus(resposta.status, resposta.url || url),
+      });
+    } else if (pareceHtml(corpo)) {
+      passos.push({
+        titulo: "Publicação (GET)",
+        ok: false,
+        detalhe:
+          "A implantação respondeu uma página HTML de login. Publique com “Executar como: Eu” e “Quem tem acesso: Qualquer pessoa”.",
+      });
+    } else {
+      passos.push({
+        titulo: "Publicação (GET)",
+        ok: true,
+        detalhe: "A implantação está no ar e respondendo.",
+      });
+    }
+  } catch {
+    passos.push({
+      titulo: "Publicação (GET)",
+      ok: false,
+      detalhe:
+        "Não foi possível alcançar o endereço. Verifique a internet, bloqueadores de anúncios e a URL.",
+    });
+  }
+
+  try {
+    const dados = await enviar<{ temAdmin: boolean }>(url, { acao: "status" });
+    passos.push({
+      titulo: "Leitura da planilha (POST)",
+      ok: true,
+      detalhe: dados.temAdmin
+        ? "Conexão funcionando! A planilha já tem administrador cadastrado."
+        : "Conexão funcionando! A planilha está vazia — crie o administrador no primeiro acesso.",
+    });
+  } catch (erro) {
+    passos.push({
+      titulo: "Leitura da planilha (POST)",
+      ok: false,
+      detalhe: erro instanceof Error ? erro.message : "Falha ao chamar a planilha.",
+    });
+  }
+
+  return passos;
 }
 
 export const api = {
