@@ -35,6 +35,9 @@ export interface Passeio {
   horaVolta?: string;
   /** Ponto de encontro / observação do passeio */
   local: string;
+  /** Informações específicas deste passeio, exibidas no PDF */
+  oQueLevar?: string;
+  informacoesAdicionais?: string;
 }
 
 export type StatusVoucher = "pendente" | "concluido" | "cancelado";
@@ -75,12 +78,6 @@ export interface Config {
   politicaCancelamento: string;
   servicos: Servico[];
 
-  /** Textos configuráveis que aparecem no PDF (novo layout) */
-  incluso?: string;
-  naoIncluso?: string;
-  oQueLevar?: string;
-  pontoRetorno?: string;
-  informacoesAdicionais?: string;
 }
 
 export interface DadosApi {

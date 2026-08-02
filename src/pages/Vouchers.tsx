@@ -621,6 +621,10 @@ export default function Vouchers() {
                       placeholder="Ponto de encontro (ex.: recepção do hotel)"
                       className="mt-2 text-xs"
                     />
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <AreaTexto rows={2} value={p.oQueLevar || ""} onChange={(e) => setPasseio(i, { oQueLevar: e.target.value })} placeholder="O que levar neste passeio..." className="text-xs" />
+                      <AreaTexto rows={2} value={p.informacoesAdicionais || ""} onChange={(e) => setPasseio(i, { informacoesAdicionais: e.target.value })} placeholder="Informações adicionais deste passeio..." className="text-xs" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -676,7 +680,7 @@ export default function Vouchers() {
             </Campo>
 
             <Aviso tom="info">
-              A política de cancelamento e os dados da empresa já entram automaticamente no PDF. A
+              Os dados de cada passeio (ponto de encontro, o que levar e informações adicionais) entram automaticamente no PDF. A
               mensagem enviada junto com o PDF no WhatsApp é editada em <b>Configurações</b>.
             </Aviso>
           </div>
