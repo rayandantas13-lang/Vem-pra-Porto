@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Sessao } from "@/types";
-import { api, modoLocal, origemApi, urlDoAmbiente } from "@/api";
+import { api, modoLocal } from "@/api";
 import { Icon } from "@/components/Icon";
 import { Aviso, Botao, Campo, Entrada } from "@/components/ui";
 
@@ -23,7 +23,6 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
 
-  const origem = origemApi();
   const local = modoLocal();
 
   useEffect(() => {
@@ -247,11 +246,6 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
             </p>
           )}
 
-          {origem === "github" && (
-            <p className="mt-3 truncate text-[11px] text-slate-400" title={urlDoAmbiente()}>
-              Conectado em <span className="font-mono">{urlDoAmbiente()}</span>
-            </p>
-          )}
         </div>
       </div>
     </div>
