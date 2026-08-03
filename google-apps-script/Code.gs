@@ -41,9 +41,30 @@ var CONFIG_PADRAO = {
   mensagemVoucher: '{saudacao}! 🌴 Segue o seu voucher com todos os detalhes do passeio. Qualquer dúvida estamos à disposição. 😊',
   politicaCancelamento: 'Prezados(as),\n\nInformamos que cancelamentos realizados com até 18 horas de antecedência do horário do passeio estarão sujeitos à cobrança integral do valor do passeio.\n\nA exceção será apenas em casos de doença, mediante apresentação de atestado médico válido.\n\nAgradecemos pela compreensão e permanecemos à disposição.',
   servicos: JSON.stringify([
-    { id: 's1', nome: 'Praia do Espelho + Caraíva', preco: 300 },
-    { id: 's2', nome: 'Trancoso + Quadrado', preco: 180 },
-    { id: 's3', nome: "Arraial d'Ajuda", preco: 150 }
+    {
+      id: 's1',
+      nome: 'Praia do Espelho + Caraíva',
+      preco: 300,
+      oQueLevar: '• Protetor solar, boné/chapéu\n• Roupa de banho + toalha\n• Câmera / celular carregado\n• Dinheiro / cartão para compras',
+      pontoRetorno: 'Retorno previsto no mesmo ponto de embarque (Hotel / Pousada). Horário aproximado de retorno: conforme roteiro.',
+      informacoesAdicionais: 'Em caso de atraso ou imprevisto, entre em contato com nossa central pelo WhatsApp da empresa. Obrigado por escolher a Vem Pra Porto!'
+    },
+    {
+      id: 's2',
+      nome: 'Trancoso + Quadrado',
+      preco: 180,
+      oQueLevar: '• Protetor solar, boné/chapéu\n• Calçado confortável\n• Câmera / celular carregado\n• Dinheiro / cartão para compras',
+      pontoRetorno: 'Retorno previsto no mesmo ponto de embarque (Hotel / Pousada). Horário aproximado de retorno: conforme roteiro.',
+      informacoesAdicionais: 'Em caso de atraso ou imprevisto, entre em contato com nossa central pelo WhatsApp da empresa. Obrigado por escolher a Vem Pra Porto!'
+    },
+    {
+      id: 's3',
+      nome: "Arraial d'Ajuda",
+      preco: 150,
+      oQueLevar: '• Protetor solar, boné/chapéu\n• Roupa de banho + toalha\n• Dinheiro / cartão para compras',
+      pontoRetorno: 'Retorno previsto no mesmo ponto de embarque (Hotel / Pousada). Horário aproximado de retorno: conforme roteiro.',
+      informacoesAdicionais: 'Em caso de atraso ou imprevisto, entre em contato com nossa central pelo WhatsApp da empresa. Obrigado por escolher a Vem Pra Porto!'
+    }
   ])
 };
 
@@ -430,7 +451,10 @@ function limparConfig(config) {
     return {
       id: s.id ? identificador(s.id, 'Serviço') : Utilities.getUuid(),
       nome: texto(s.nome, 160, true, 'Nome do serviço'),
-      preco: numero(s.preco || 0, 0, 100000000, 'Preço do serviço')
+      preco: numero(s.preco || 0, 0, 100000000, 'Preço do serviço'),
+      oQueLevar: texto(s.oQueLevar || '', 1000, false, 'O que levar'),
+      pontoRetorno: texto(s.pontoRetorno || '', 1000, false, 'Ponto de retorno'),
+      informacoesAdicionais: texto(s.informacoesAdicionais || '', 2000, false, 'Informações adicionais')
     };
   });
 

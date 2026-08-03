@@ -115,6 +115,9 @@ export default function Configuracoes() {
       id: uid(),
       nome: novoServico.nome.trim(),
       preco: Number(novoServico.preco) || 0,
+      oQueLevar: "",
+      pontoRetorno: "",
+      informacoesAdicionais: "",
     };
     set({ servicos: [...form.servicos, s] });
     setNovoServico({ nome: "", preco: "" });
@@ -383,60 +386,111 @@ export default function Configuracoes() {
             <Icon name="pin" className="size-4" />
           </span>
           <div>
-            <h2 className="font-bold text-slate-900">Passeios e preços</h2>
+            <h2 className="font-bold text-slate-900">Passeios, preços e textos do PDF</h2>
             <p className="text-xs text-slate-500">
-              Sugestões que aparecem ao digitar o serviço no voucher.
+              Configure os passeios, preços e os textos padrão (O que levar, Ponto de retorno e Informações adicionais) que sairão no PDF.
             </p>
           </div>
         </div>
 
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <div className="space-y-4">
           {form.servicos.map((s) => (
-            <li
+            <div
               key={s.id}
-              className="flex items-center gap-3 rounded-xl px-3 py-2 ring-1 ring-slate-200"
+              className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 space-y-3"
             >
-              <input
-                value={s.nome}
-                onChange={(e) =>
-                  set({
-                    servicos: form.servicos.map((x) =>
-                      x.id === s.id ? { ...x, nome: e.target.value } : x,
-                    ),
-                  })
-                }
-                className="min-w-0 flex-1 border-0 bg-transparent text-sm font-semibold text-slate-800 outline-none"
-              />
-              <div className="flex items-center gap-1 text-sm font-bold text-slate-600">
-                R$
-                <input
-                  type="number"
-                  step="0.01"
-                  value={s.preco}
+              <div className="flex flex-wrap items-center gap-3">
+                <Entrada
+                  value={s.nome}
                   onChange={(e) =>
                     set({
                       servicos: form.servicos.map((x) =>
-                        x.id === s.id ? { ...x, preco: Number(e.target.value) } : x,
+                        x.id === s.id ? { ...x, nome: e.target.value } : x,
                       ),
                     })
                   }
-                  className="w-20 rounded-lg bg-slate-50 px-2 py-1 text-right outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Nome do passeio"
+                  className="min-w-48 flex-1 font-semibold"
+                />
+                <div className="flex items-center gap-1.5 text-sm font-bold text-slate-600">
+                  R$
+                  <Entrada
+                    type="number"
+                    step="0.01"
+                    value={s.preco}
+                    onChange={(e) =>
+                      set({
+                        servicos: form.servicos.map((x) =>
+                          x.id === s.id ? { ...x, preco: Number(e.target.value) } : x,
+                        ),
+                      })
+                    }
+                    className="w-28 text-right"
+                  />
+                </div>
+                <BotaoIcone
+                  icone="trash"
+                  titulo="Remover"
+                  className="hover:bg-rose-50 hover:text-rose-600"
+                  onClick={() => set({ servicos: form.servicos.filter((x) => x.id !== s.id) })}
                 />
               </div>
-              <BotaoIcone
-                icone="trash"
-                titulo="Remover"
-                className="hover:bg-rose-50 hover:text-rose-600"
-                onClick={() => set({ servicos: form.servicos.filter((x) => x.id !== s.id) })}
-              />
-            </li>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Campo rotulo="O que levar (padrão)">
+                  <AreaTexto
+                    rows={3}
+                    value={s.oQueLevar || ""}
+                    onChange={(e) =>
+                      set({
+                        servicos: form.servicos.map((x) =>
+                          x.id === s.id ? { ...x, oQueLevar: e.target.value } : x,
+                        ),
+                      })
+                    }
+                    placeholder="Ex: Protetor solar, toalha..."
+                    className="text-xs"
+                  />
+                </Campo>
+                <Campo rotulo="Ponto de retorno / encontro (padrão)">
+                  <AreaTexto
+                    rows={3}
+                    value={s.pontoRetorno || ""}
+                    onChange={(e) =>
+                      set({
+                        servicos: form.servicos.map((x) =>
+                          x.id === s.id ? { ...x, pontoRetorno: e.target.value } : x,
+                        ),
+                      })
+                    }
+                    placeholder="Ex: Recepção do hotel..."
+                    className="text-xs"
+                  />
+                </Campo>
+                <Campo rotulo="Informações adicionais (padrão)">
+                  <AreaTexto
+                    rows={3}
+                    value={s.informacoesAdicionais || ""}
+                    onChange={(e) =>
+                      set({
+                        servicos: form.servicos.map((x) =>
+                          x.id === s.id ? { ...x, informacoesAdicionais: e.target.value } : x,
+                        ),
+                      })
+                    }
+                    placeholder="Ex: Em caso de atraso..."
+                    className="text-xs"
+                  />
+                </Campo>
+              </div>
+            </div>
           ))}
           {!form.servicos.length && (
-            <li className="rounded-xl bg-slate-50 py-6 text-center text-sm text-slate-400 sm:col-span-2">
+            <div className="rounded-xl bg-slate-50 py-6 text-center text-sm text-slate-400">
               Nenhum passeio cadastrado.
-            </li>
+            </div>
           )}
-        </ul>
+        </div>
 
         <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
           <Entrada
@@ -461,14 +515,6 @@ export default function Configuracoes() {
             Salvar passeios
           </Botao>
         </div>
-        <p className="mt-3 text-xs text-slate-400">
-          Preço médio:{" "}
-          {brl(
-            form.servicos.length
-              ? form.servicos.reduce((s, x) => s + x.preco, 0) / form.servicos.length
-              : 0,
-          )}
-        </p>
       </Cartao>
 
       {/* Banco de dados */}

@@ -66,6 +66,9 @@ export interface Servico {
   id: ID;
   nome: string;
   preco: number;
+  oQueLevar?: string;
+  pontoRetorno?: string;
+  informacoesAdicionais?: string;
 }
 
 export interface Config {
