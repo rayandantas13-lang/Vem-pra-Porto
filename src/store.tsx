@@ -26,7 +26,7 @@ function lerSessao(): Sessao | null {
     const raw = sessionStorage.getItem(SESSAO_KEY);
     if (!raw) return null;
     const sessao = JSON.parse(raw) as Sessao;
-    if (!sessao.token || new Date(sessao.expiraEm).getTime() <= Date.now()) {
+    if (!sessao.token || !sessao.usuario || !sessao.usuario.papel || new Date(sessao.expiraEm).getTime() <= Date.now()) {
       sessionStorage.removeItem(SESSAO_KEY);
       return null;
     }
@@ -191,7 +191,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       sessao,
       usuario: sessao?.usuario ?? null,
-      ehAdmin: sessao?.usuario.papel === "admin",
+      ehAdmin: sessao?.usuario?.papel === "admin",
       verificando,
       carregando,
       local: modoLocal(),

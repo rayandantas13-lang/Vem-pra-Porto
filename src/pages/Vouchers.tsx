@@ -127,8 +127,13 @@ export default function Vouchers() {
 
   const escolherServico = (i: number, nome: string) => {
     if (!form) return;
-    setPasseio(i, { nome });
     const s = config.servicos.find((x) => x.nome === nome);
+    setPasseio(i, {
+      nome,
+      oQueLevar: s?.oQueLevar ?? form.passeios[i].oQueLevar,
+      local: s?.pontoRetorno ?? form.passeios[i].local,
+      informacoesAdicionais: s?.informacoesAdicionais ?? form.passeios[i].informacoesAdicionais,
+    });
     if (s) set({ total: s.preco * (form.pessoas || 1) });
   };
 
