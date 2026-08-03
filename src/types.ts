@@ -55,6 +55,10 @@ export interface Voucher {
   contatoExtra: string;
   passeios: Passeio[];
   total: number;
+  /** Tipo do desconto aplicado sobre o total: percentual (%) ou valor fixo (R$). */
+  tipoDesconto?: "percentual" | "fixo";
+  /** Valor do desconto — em % (percentual) ou em R$ (fixo). 0/ausente = sem desconto. */
+  desconto?: number;
   entrada: number;
   formaPagamento: string;
   observacoes: string;

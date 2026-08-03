@@ -35,6 +35,7 @@ import {
   STATUS_LISTA,
   STATUS_META,
   statusMeta,
+  totalComDesconto,
   totalPessoas,
   uid,
 } from "@/lib/utils";
@@ -59,6 +60,8 @@ const novoVoucher = (): Voucher => ({
   contatoExtra: "",
   passeios: [passeioVazio()],
   total: 0,
+  tipoDesconto: "percentual",
+  desconto: 0,
   entrada: 0,
   formaPagamento: "",
   observacoes: "",
@@ -152,7 +155,8 @@ export default function Vouchers() {
     if (!clientes.length) return setErro("Informe pelo menos o nome de um cliente.");
     const passeios = form.passeios.filter((p) => p.nome.trim() && p.data);
     if (!passeios.length) return setErro("Informe pelo menos um passeio com nome e data.");
-    if (form.entrada > form.total) return setErro("A entrada não pode ser maior que o total.");
+    if (form.entrada > totalComDesconto(form))
+      return setErro("A entrada não pode ser maior que o total (com desconto).");
 
     salvarVoucher({
       ...form,
@@ -642,7 +646,7 @@ export default function Vouchers() {
             </div>
 
             {/* Pagamento */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Campo rotulo="Valor total (R$)">
                 <Entrada
                   type="number"
@@ -651,6 +655,34 @@ export default function Vouchers() {
                   value={form.total}
                   onChange={(e) => set({ total: Number(e.target.value) })}
                 />
+              </Campo>
+              <Campo
+                rotulo="Desconto"
+                dica={
+                  form.desconto && form.desconto > 0
+                    ? `−${brl(totalComDesconto(form))}`
+                    : undefined
+                }
+              >
+                <div className="flex gap-2">
+                  <Selecao
+                    value={form.tipoDesconto}
+                    onChange={(e) => set({ tipoDesconto: e.target.value as "percentual" | "fixo" })}
+                    aria-label="Tipo do desconto"
+                    className="w-[76px] shrink-0 text-center"
+                  >
+                    <option value="percentual">%</option>
+                    <option value="fixo">R$</option>
+                  </Selecao>
+                  <Entrada
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.desconto}
+                    onChange={(e) => set({ desconto: Number(e.target.value) })}
+                    placeholder="0"
+                  />
+                </div>
               </Campo>
               <Campo rotulo="Valor da entrada (R$)">
                 <Entrada
@@ -666,7 +698,7 @@ export default function Vouchers() {
                   {brl(aReceber(form))}
                 </div>
               </Campo>
-              <Campo rotulo="Forma de pagamento" className="sm:col-span-3">
+              <Campo rotulo="Forma de pagamento" className="sm:col-span-2">
                 <Entrada
                   value={form.formaPagamento}
                   onChange={(e) => set({ formaPagamento: e.target.value })}
