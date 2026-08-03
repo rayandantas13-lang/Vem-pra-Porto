@@ -6,6 +6,7 @@ import Dashboard from "@/pages/Dashboard";
 import Agenda from "@/pages/Agenda";
 import Vouchers from "@/pages/Vouchers";
 import Configuracoes from "@/pages/Configuracoes";
+import { AVISO_IMPLANTACAO_ANTIGA } from "@/api";
 import { dataCompleta, hoje, iniciais, totalPessoas } from "@/lib/utils";
 import { cn } from "@/utils/cn";
 
@@ -65,7 +66,8 @@ function Toasts() {
 function Painel() {
   const [rota, ir] = useRota();
   const [menuAberto, setMenuAberto] = useState(false);
-  const { config, vouchers, usuario, ehAdmin, sair, carregando, erroCarga, local } = useStore();
+  const { config, vouchers, usuario, ehAdmin, sair, carregando, erroCarga, local, apiDesatualizada } =
+    useStore();
 
   const hojeInfo = useMemo(() => {
     const h = hoje();
@@ -265,6 +267,22 @@ function Painel() {
             </div>
           ) : (
             <div key={atual.id} className="anim-up space-y-5">
+              {apiDesatualizada && (
+                <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
+                  <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p>{AVISO_IMPLANTACAO_ANTIGA}</p>
+                    {ehAdmin && (
+                      <button
+                        onClick={() => ir("config")}
+                        className="text-xs font-bold text-amber-900 underline underline-offset-2 hover:text-amber-950"
+                      >
+                        Abrir Configurações → Banco de dados
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               {erroCarga && (
                 <div className="flex items-start gap-2.5 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-rose-200">
                   <Icon name="alert" className="mt-0.5 size-4 shrink-0" />

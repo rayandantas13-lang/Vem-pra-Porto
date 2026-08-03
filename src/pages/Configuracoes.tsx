@@ -28,7 +28,6 @@ import {
   Selo,
 } from "@/components/ui";
 import {
-  brl,
   iniciais,
   mascaraTelefone,
   MENSAGEM_VOUCHER_PADRAO,

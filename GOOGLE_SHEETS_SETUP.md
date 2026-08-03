@@ -68,6 +68,14 @@ Abas criadas automaticamente: `Usuarios`, `Vouchers`, `Config`, `Sessoes`, `Audi
 
 Na aba `Vouchers`, além dos dados brutos, as colunas **servicos**, **datas** e **aReceber** são preenchidas sozinhas para você conseguir ler e filtrar direto na planilha.
 
+### Sempre que o `Code.gs` mudar, reimplante
+
+O Google continua servindo a **versão publicada** do script: salvar o arquivo no editor não muda nada para o site. Se a implantação estiver velha, o painel conecta normalmente, mas o Apps Script **descarta campos que ainda não conhece** ao gravar — foi o que fazia "O que levar", "Informações adicionais" e a data/hora de volta sumirem depois de salvar.
+
+Por isso o script informa a própria versão ao painel. Quando ela está atrás da esperada, aparece um aviso amarelo no topo e a etapa **Versão do Apps Script** falha em **Configurações → Banco de dados → Testar conexão**.
+
+Para atualizar: cole o `Code.gs` novo e vá em **Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar**. Depois **saia e entre novamente** no painel.
+
 ### Onde colar a URL
 
 **Opção A — variável do GitHub (recomendada)**
