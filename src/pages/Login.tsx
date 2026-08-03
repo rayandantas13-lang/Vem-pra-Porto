@@ -3,7 +3,6 @@ import type { Sessao } from "@/types";
 import { api, modoLocal, origemApi, urlDoAmbiente } from "@/api";
 import { Icon } from "@/components/Icon";
 import { Aviso, Botao, Campo, Entrada } from "@/components/ui";
-import { cn } from "@/utils/cn";
 
 const vazio = {
   nome: "",
@@ -239,16 +238,6 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
               <Aviso tom="erro">{erro}</Aviso>
             </div>
           )}
-
-          <div
-            className={cn(
-              "mt-5 flex items-center gap-2 rounded-xl px-3 py-2.5 text-[11px] font-semibold ring-1 ring-inset",
-              selo.cor,
-            )}
-          >
-            <Icon name={selo.icone} className="size-3.5" />
-            {selo.texto}
-          </div>
 
           {local && (
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
