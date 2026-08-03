@@ -77,25 +77,6 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
       setCarregando(false);
     }
   };
-
-  const selo = {
-    local: {
-      icone: "database" as const,
-      texto: "Modo local · dados neste navegador",
-      cor: "bg-amber-50 text-amber-700 ring-amber-200",
-    },
-    github: {
-      icone: "branch" as const,
-      texto: "Google Sheets · variável do GitHub",
-      cor: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    },
-    manual: {
-      icone: "cloud" as const,
-      texto: "Google Sheets · URL deste navegador",
-      cor: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    },
-  }[origem];
-
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 p-4">
       <div className="absolute -top-40 -left-32 size-[28rem] rounded-full bg-indigo-500/15 blur-3xl" />
