@@ -262,7 +262,8 @@ class PDFVoucherBuilder {
         txt += ` | Volta às ${p.horaVolta}`;
       }
 
-      if (p.local) txt += ` · ${p.local}`;
+      // Ponto de encontro NÃO entra no roteiro — já aparece em Informações
+      // (evita duplicar o texto depois da data/hora).
 
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(10);
