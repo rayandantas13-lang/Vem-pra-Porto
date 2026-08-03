@@ -1,5 +1,5 @@
 import type { Config, DadosApi, Sessao, Usuario, Voucher } from "@/types";
-import { requisicaoLocal } from "@/localBackend";
+
 
 interface RespostaApi<T = unknown> {
   ok: boolean;
@@ -246,7 +246,7 @@ async function enviar<T>(url: string, payload: Record<string, unknown>): Promise
 
 async function req<T>(payload: Record<string, unknown>): Promise<T> {
   const url = urlApi();
-  if (!url) return requisicaoLocal<T>(payload);
+  if (!url) throw new ErroApi("URL do Apps Script não configurada. Vá em Configurações → Banco de dados e cole a URL terminada em /exec para que os dados fiquem salvos em todos os acessos.", false);
   return enviar<T>(url, payload);
 }
 
