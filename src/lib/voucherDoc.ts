@@ -337,9 +337,14 @@ class PDFVoucherBuilder {
     this.texto("VALOR TOTAL", cx(2), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
     if (temDesconto) {
       const original = brl(total);
-      const tw = this.doc.getTextWidth(original);
+      // Mede a largura DEPOIS de setar a fonte do texto (9pt bold) — se medir
+      // antes, pega a fonte anterior (14pt do "A RECEBER") e o risco sai maior
+      // que o texto e descentralizado.
       this.texto(original, cx(2), this.y + 14.5, 9, "bold", CORES.cinzaClaro, "center");
-      this.linha(cx(2) - tw / 2, this.y + 14.1, tw, CORES.destaque);
+      const tw = this.doc.getTextWidth(original);
+      // Risco no meio dos dígitos: baseline (y+14.5) − ~1,1mm (33% do corpo de
+      // 9pt ≈ 1,05mm). Coordenadas estão em mm; fonte em pt (9pt ≈ 3,2mm).
+      this.linha(cx(2) - tw / 2, this.y + 13.4, tw, CORES.destaque);
       this.texto(brl(comDesconto), cx(2), this.y + 22, 14, "bold", CORES.destaque, "center");
     } else {
       this.texto(brl(total), cx(2), this.y + 16.5, 12, "bold", CORES.branco, "center");

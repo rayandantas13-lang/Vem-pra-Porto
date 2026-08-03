@@ -38,6 +38,7 @@ import {
   totalComDesconto,
   totalPessoas,
   uid,
+  valorDesconto,
 } from "@/lib/utils";
 import {
   baixarEAbrirWhatsApp,
@@ -307,7 +308,24 @@ export default function Vouchers() {
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-xl leading-none font-extrabold">{brl(v.total)}</p>
+                    {valorDesconto(v) > 0 ? (
+                      <>
+                        {/* Total original riscado + total com desconto */}
+                        <p
+                          className={cn(
+                            "text-base leading-none font-bold line-through decoration-rose-300",
+                            v.status === "cancelado" ? "text-slate-500" : "text-white/80",
+                          )}
+                        >
+                          {brl(v.total)}
+                        </p>
+                        <p className="mt-0.5 text-xl leading-none font-extrabold">
+                          {brl(totalComDesconto(v))}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xl leading-none font-extrabold">{brl(v.total)}</p>
+                    )}
                     {aReceber(v) > 0 && (
                       <p className="mt-1 text-[11px] font-bold opacity-90">
                         receber {brl(aReceber(v))}
