@@ -21,7 +21,9 @@ var ABAS = {
 };
 
 var SEGURANCA = {
-  versao: '2',
+  // Enviada ao painel em todas as respostas. Quando o número aqui for maior
+  // que o esperado pelo site, o painel avisa que a implantação está velha.
+  versao: '3',
   tamanhoMaximoRequisicao: 300000,
   horasSessao: 8,
   maxTentativasLogin: 5,
@@ -108,7 +110,7 @@ function processar(req) {
     var acao = texto(req.acao, 40, true, 'Ação');
 
     // Somente estas três ações existem antes da autenticação.
-    if (acao === 'status') return ok({ temAdmin: temAdmin() });
+    if (acao === 'status') return ok({ temAdmin: temAdmin(), versao: SEGURANCA.versao });
     if (acao === 'criarPrimeiroAdmin') return ok(criarPrimeiroAdmin(req));
     if (acao === 'entrar') return ok(entrar(req));
 
@@ -124,7 +126,7 @@ function processar(req) {
         return ok(null);
 
       case 'dados':
-        return ok({ vouchers: lerVouchers(), config: lerConfig() });
+        return ok({ vouchers: lerVouchers(), config: lerConfig(), versao: SEGURANCA.versao });
 
       case 'salvarVoucher': {
         var voucher = salvarVoucher(req.voucher);
@@ -380,6 +382,13 @@ function dataSegura(valor) {
   return data;
 }
 
+/** Igual a dataSegura, mas aceita vazio — usado na data de volta. */
+function dataOpcional(valor) {
+  var data = texto(valor, 10, false, 'Data');
+  if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error('Data inválida.');
+  return data;
+}
+
 function horaSegura(valor) {
   var hora = texto(valor, 5, false, 'Hora');
   if (hora && !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) throw new Error('Hora inválida.');
@@ -398,12 +407,18 @@ function limparVoucher(v) {
   var passeios = lista(v.passeios, 30, 'Passeios').map(function (p) {
     if (!p || Object.prototype.toString.call(p) !== '[object Object]')
       throw new Error('Passeio inválido.');
+    // Todos os campos preenchidos na tela precisam ser gravados. Qualquer campo
+    // ausente aqui é silenciosamente descartado e some do voucher e do PDF.
     return {
       id: p.id ? identificador(p.id, 'Passeio') : Utilities.getUuid(),
       nome: texto(p.nome, 160, true, 'Nome do passeio'),
       data: dataSegura(p.data),
       hora: horaSegura(p.hora),
-      local: texto(p.local, 250, false, 'Ponto de encontro')
+      dataVolta: dataOpcional(p.dataVolta),
+      horaVolta: horaSegura(p.horaVolta),
+      local: texto(p.local, 250, false, 'Ponto de encontro'),
+      oQueLevar: texto(p.oQueLevar || '', 1000, false, 'O que levar'),
+      informacoesAdicionais: texto(p.informacoesAdicionais || '', 2000, false, 'Informações adicionais')
     };
   });
   if (!passeios.length) throw new Error('Informe pelo menos um passeio.');

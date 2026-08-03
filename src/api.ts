@@ -18,6 +18,27 @@ const HOST_SCRIPT = "script.google.com";
  */
 const HOST_CONTEUDO = "script.googleusercontent.com";
 
+/**
+ * Versão do google-apps-script/Code.gs que este site espera encontrar
+ * publicado. Quando a planilha responde uma versão menor, o Apps Script no ar
+ * é anterior aos campos novos (o que levar, informações adicionais, data/hora
+ * de volta) e descarta silenciosamente esses dados ao salvar. Nesse caso o
+ * painel avisa em vez de deixar o usuário perder texto sem perceber.
+ */
+export const VERSAO_ESPERADA = 3;
+
+/** true quando a implantação publicada é anterior à esperada por este site. */
+export function versaoDesatualizada(versao: unknown) {
+  const numero = Number(versao);
+  return !Number.isFinite(numero) || numero < VERSAO_ESPERADA;
+}
+
+export const AVISO_IMPLANTACAO_ANTIGA =
+  "O Apps Script publicado está desatualizado: os campos “O que levar”, " +
+  "“Informações adicionais” e a data/hora de volta não são gravados na planilha. " +
+  "Abra o Apps Script, cole o Code.gs mais recente e use Implantar → Gerenciar " +
+  "implantações → ✏️ → Versão: Nova versão.";
+
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
 const ACOES_REPETIVEIS = new Set([
   "status",
@@ -320,7 +341,7 @@ export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]
   }
 
   try {
-    const dados = await enviar<{ temAdmin: boolean }>(url, { acao: "status" });
+    const dados = await enviar<{ temAdmin: boolean; versao?: string }>(url, { acao: "status" });
     passos.push({
       titulo: "Leitura da planilha (POST)",
       ok: true,
@@ -328,6 +349,22 @@ export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]
         ? "Conexão funcionando! A planilha já tem administrador cadastrado."
         : "Conexão funcionando! A planilha está vazia — crie o administrador no primeiro acesso.",
     });
+
+    // Conectar não basta: uma implantação antiga responde normalmente mas
+    // descarta os campos novos ao gravar.
+    passos.push(
+      versaoDesatualizada(dados.versao)
+        ? {
+            titulo: "Versão do Apps Script",
+            ok: false,
+            detalhe: AVISO_IMPLANTACAO_ANTIGA,
+          }
+        : {
+            titulo: "Versão do Apps Script",
+            ok: true,
+            detalhe: `Implantação atualizada (versão ${dados.versao}). Todos os campos são gravados na planilha.`,
+          },
+    );
   } catch (erro) {
     passos.push({
       titulo: "Leitura da planilha (POST)",
@@ -340,7 +377,7 @@ export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]
 }
 
 export const api = {
-  status: () => req<{ temAdmin: boolean }>({ acao: "status" }),
+  status: () => req<{ temAdmin: boolean; versao?: string }>({ acao: "status" }),
   entrar: (usuario: string, senha: string) => req<Sessao>({ acao: "entrar", usuario, senha }),
   criarPrimeiroAdmin: (p: {
     nome: string;

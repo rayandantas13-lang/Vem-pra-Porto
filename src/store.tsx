@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Config, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
-import { api, modoLocal } from "@/api";
+import { api, modoLocal, versaoDesatualizada } from "@/api";
 import { CONFIG_PADRAO } from "@/data/seed";
 import { normalizarStatus, uid } from "@/lib/utils";
 
@@ -57,6 +57,8 @@ interface Ctx {
   carregando: boolean;
   local: boolean;
   erroCarga: string;
+  /** true quando o Apps Script publicado é anterior ao Code.gs deste site. */
+  apiDesatualizada: boolean;
   entrar: (s: Sessao) => void;
   sair: () => Promise<void>;
   recarregar: () => void;
@@ -80,6 +82,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [verificando, setVerificando] = useState(true);
   const [carregando, setCarregando] = useState(false);
   const [erroCarga, setErroCarga] = useState("");
+  const [apiDesatualizada, setApiDesatualizada] = useState(false);
   const [recarga, setRecarga] = useState(0);
 
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
@@ -158,6 +161,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // normalizado para "pendente" para a tela nunca quebrar.
         setVouchers((d.vouchers ?? []).map((v) => ({ ...v, status: normalizarStatus(v.status) })));
         setConfig({ ...CONFIG_PADRAO, ...(d.config ?? {}) });
+        // Uma implantação antiga responde normalmente, mas descarta os campos
+        // novos ao gravar. Avisamos para o texto não sumir sem explicação.
+        setApiDesatualizada(!modoLocal() && versaoDesatualizada(d.versao));
       })
       .catch((e: unknown) => {
         if (!cancelado)
@@ -196,6 +202,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       carregando,
       local: modoLocal(),
       erroCarga,
+      apiDesatualizada,
 
       entrar: (s) => {
         gravarSessao(s);
@@ -250,7 +257,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toasts,
       notificar,
     }),
-    [sessao, verificando, carregando, erroCarga, vouchers, config, toasts, token, executar, notificar],
+    [
+      sessao,
+      verificando,
+      carregando,
+      erroCarga,
+      apiDesatualizada,
+      vouchers,
+      config,
+      toasts,
+      token,
+      executar,
+      notificar,
+    ],
   );
 
   return <StoreCtx.Provider value={valor}>{children}</StoreCtx.Provider>;

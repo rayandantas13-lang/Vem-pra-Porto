@@ -86,4 +86,6 @@ export interface Config {
 export interface DadosApi {
   vouchers: Voucher[];
   config: Config;
+  /** Versão do Code.gs publicado. Ausente em implantações antigas. */
+  versao?: string;
 }
