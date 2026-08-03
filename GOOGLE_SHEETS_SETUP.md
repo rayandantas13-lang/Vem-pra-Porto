@@ -19,7 +19,7 @@ Ao criar um voucher você informa:
 - **Nº de pessoas** — preenchido sozinho conforme os nomes
 - **Hotel**, **WhatsApp** e **outros contatos**
 - **Passeios** — um ou vários, cada um com serviço, data, hora e ponto de encontro
-- **Valor total** e **entrada** — o "a receber" é calculado automaticamente
+- **Valor total**, **desconto** (em % ou R$, opcional) e **entrada** — o "a receber" é calculado automaticamente
 - **Forma de pagamento** e **observações**
 
 O envio é sempre **PDF + mensagem curta**, sem número fixo: o WhatsApp abre e você escolhe para qual contato mandar.

@@ -240,8 +240,22 @@ export const primeiraData = (v: Voucher) => {
   return datas[0] || "";
 };
 
+/** Valor do desconto em reais sobre o total. Aceita desconto em % ou valor fixo (R$). */
+export const valorDesconto = (v: Voucher) => {
+  const total = Number(v.total) || 0;
+  const valor = Number(v.desconto) || 0;
+  if (valor <= 0) return 0;
+  if (v.tipoDesconto === "fixo") return Math.min(valor, total);
+  // percentual
+  return total * (valor / 100);
+};
+
+/** Total já com o desconto aplicado. */
+export const totalComDesconto = (v: Voucher) =>
+  Math.max(0, (Number(v.total) || 0) - valorDesconto(v));
+
 export const aReceber = (v: Voucher) =>
-  Math.max(0, (Number(v.total) || 0) - (Number(v.entrada) || 0));
+  Math.max(0, totalComDesconto(v) - (Number(v.entrada) || 0));
 
 export const totalPessoas = (v: Voucher) =>
   Number(v.pessoas) || (v.clientes || []).filter((n) => n.trim()).length || 1;

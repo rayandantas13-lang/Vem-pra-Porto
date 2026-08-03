@@ -14,7 +14,7 @@
 var ABAS = {
   Usuarios: ['id', 'nome', 'email', 'usuario', 'papel', 'senhaHash', 'salt', 'ativo', 'criadoEm', 'ultimoAcesso'],
   Vouchers: ['id', 'codigo', 'clientes', 'pessoas', 'hotel', 'telefone', 'contatoExtra', 'passeios',
-             'servicos', 'datas', 'total', 'entrada', 'aReceber', 'formaPagamento', 'observacoes', 'status', 'criadoEm'],
+             'servicos', 'datas', 'total', 'tipoDesconto', 'desconto', 'entrada', 'aReceber', 'formaPagamento', 'observacoes', 'status', 'criadoEm'],
   Config: ['chave', 'valor', 'atualizadoEm'],
   Sessoes: ['id', 'token', 'usuarioId', 'expiraEm', 'criadoEm'],
   Auditoria: ['id', 'usuarioId', 'usuario', 'acao', 'recurso', 'recursoId', 'detalhes', 'criadoEm']
@@ -369,6 +369,13 @@ function numero(valor, minimo, maximo, rotulo) {
   return n;
 }
 
+/** Valor do desconto em reais sobre o total (aceita % ou valor fixo R$). */
+function descontoValorGs(total, tipo, valor) {
+  if (valor <= 0) return 0;
+  if (tipo === 'fixo') return Math.min(valor, total);
+  return total * (valor / 100);
+}
+
 function lista(valor, maximo, rotulo) {
   if (Object.prototype.toString.call(valor) !== '[object Array]')
     throw new Error((rotulo || 'Lista') + ' inválida.');
@@ -437,6 +444,10 @@ function limparVoucher(v) {
 
   var total = numero(v.total || 0, 0, 100000000, 'Valor total');
   var entrada = numero(v.entrada || 0, 0, total, 'Valor da entrada');
+  var tipoDesconto = v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual';
+  var desconto = numero(v.desconto || 0, 0, 100000000, 'Desconto');
+  if (desconto > 0 && tipoDesconto === 'percentual' && desconto > 100)
+    throw new Error('Desconto percentual não pode passar de 100%.');
 
   return {
     id: identificador(v.id, 'Voucher'),
@@ -448,6 +459,8 @@ function limparVoucher(v) {
     contatoExtra: texto(v.contatoExtra, 300, false, 'Contato adicional'),
     passeios: passeios,
     total: total,
+    tipoDesconto: tipoDesconto,
+    desconto: desconto,
     entrada: entrada,
     formaPagamento: texto(v.formaPagamento, 200, false, 'Forma de pagamento'),
     observacoes: texto(v.observacoes, 2000, false, 'Observações'),
@@ -498,6 +511,8 @@ function lerVouchers() {
       contatoExtra: v.contatoExtra,
       passeios: jsonSeguro(v.passeios, []),
       total: Number(v.total || 0),
+      tipoDesconto: v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual',
+      desconto: Number(v.desconto || 0),
       entrada: Number(v.entrada || 0),
       formaPagamento: v.formaPagamento,
       observacoes: v.observacoes,
@@ -526,8 +541,10 @@ function salvarVoucher(entrada) {
     servicos: servicos,
     datas: datas,
     total: v.total,
+    tipoDesconto: v.tipoDesconto,
+    desconto: v.desconto,
     entrada: v.entrada,
-    aReceber: Math.max(0, v.total - v.entrada),
+    aReceber: Math.max(0, v.total - v.entrada - descontoValorGs(v.total, v.tipoDesconto, v.desconto)),
     formaPagamento: v.formaPagamento,
     observacoes: v.observacoes,
     status: v.status,

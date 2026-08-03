@@ -10,7 +10,9 @@ import {
   nomesClientes,
   nomesPasseios,
   STATUS_META,
+  totalComDesconto,
   totalPessoas,
+  valorDesconto,
 } from "@/lib/utils";
 
 /* ============================================================
@@ -293,10 +295,15 @@ class PDFVoucherBuilder {
 
   // 5. PAGAMENTO (com status do voucher)
   private construirPagamento(voucher: Voucher) {
-    this.checkPageBreak(42);
-    const total = voucher.total || 0;
-    const entrada = voucher.entrada || 0;
+    const total = Number(voucher.total) || 0;
+    const entrada = Number(voucher.entrada) || 0;
+    const desconto = valorDesconto(voucher);
+    const comDesconto = totalComDesconto(voucher);
     const aReceberValor = aReceber(voucher);
+    const temDesconto = desconto > 0;
+
+    const boxH = temDesconto ? 29 : 22;
+    this.checkPageBreak(boxH + 24);
 
     // Cabeçalho da seção + selo de status
     this.texto("PAGAMENTO", this.M, this.y + 4.7, 8, "bold", CORES.cinza);
@@ -304,28 +311,41 @@ class PDFVoucherBuilder {
     this.y += 8.5;
 
     // Box principal
-    this.box(this.M, this.y, this.W, 22, CORES.escuro, false, 2);
+    this.box(this.M, this.y, this.W, boxH, CORES.escuro, false, 2);
 
     const colWidth = this.W / 3;
-    const items = [
-      { label: "ENTRADA PAGA", value: brl(entrada), destaque: false },
-      { label: "A RECEBER", value: brl(aReceberValor), destaque: true },
-      { label: "VALOR TOTAL", value: brl(total), destaque: false },
-    ];
+    const cx = (i: number) => this.M + i * colWidth + colWidth / 2;
 
-    items.forEach((item, index) => {
-      const x = this.M + index * colWidth + colWidth / 2;
+    // ENTRADA PAGA
+    this.texto("ENTRADA PAGA", cx(0), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+    this.texto(brl(entrada), cx(0), this.y + (temDesconto ? 19 : 16.5), 12, "bold", CORES.branco, "center");
 
-      // Label
-      this.texto(item.label, x, this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+    // A RECEBER
+    this.texto("A RECEBER", cx(1), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+    this.texto(
+      brl(aReceberValor),
+      cx(1),
+      this.y + (temDesconto ? 19 : 16.5),
+      temDesconto ? 14 : 15,
+      "bold",
+      CORES.destaque,
+      "center"
+    );
 
-      // Valor
-      const cor = item.destaque ? CORES.destaque : CORES.branco;
-      const tamanho = item.destaque ? 15 : 12;
-      this.texto(item.value, x, this.y + 16.5, tamanho, "bold", cor, "center");
-    });
+    // VALOR TOTAL — com desconto mostra o total original riscado e o valor com
+    // desconto logo abaixo (tudo em uma linha/coluna).
+    this.texto("VALOR TOTAL", cx(2), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+    if (temDesconto) {
+      const original = brl(total);
+      const tw = this.doc.getTextWidth(original);
+      this.texto(original, cx(2), this.y + 14.5, 9, "bold", CORES.cinzaClaro, "center");
+      this.linha(cx(2) - tw / 2, this.y + 14.1, tw, CORES.destaque);
+      this.texto(brl(comDesconto), cx(2), this.y + 22, 14, "bold", CORES.destaque, "center");
+    } else {
+      this.texto(brl(total), cx(2), this.y + 16.5, 12, "bold", CORES.branco, "center");
+    }
 
-    this.y += 28;
+    this.y += boxH + 6;
 
     // Forma de pagamento
     if (voucher.formaPagamento) {
