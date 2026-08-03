@@ -481,11 +481,50 @@ class PDFVoucherBuilder {
    FUNÇÕES EXPORTADAS
    ============================================================ */
 
+/**
+ * Recria o voucher completando, em cada passeio, os campos "o que levar",
+ * "ponto de encontro" e "informações adicionais" que estiverem vazios,
+ * usando o serviço de mesmo nome no catálogo (config.servicos).
+ *
+ * Esses três campos são exatamente os que o formulário "puxa" ao escolher o
+ * serviço. Quando o voucher volta do Google Sheets sem eles (implantação do
+ * Apps Script antiga, ou voucher salvo antes da última atualização), o nome do
+ * passeio continua intacto — então recuperamos o texto a partir do catálogo,
+ * que é a mesma origem do formulário, e o PDF sai completo.
+ *
+ * Campos já preenchidos (incluindo edições manuais) nunca são sobrescritos.
+ */
+function enriquecerPasseios(v: Voucher, config: Config): Voucher {
+  const catalogo = new Map(
+    (config.servicos ?? [])
+      .map((s) => [(s.nome || "").trim(), s] as const)
+      .filter(([nome]) => !!nome),
+  );
+
+  const passeios = (v.passeios ?? []).map((p) => {
+    const s = catalogo.get((p.nome || "").trim());
+    if (!s) return p;
+    return {
+      ...p,
+      oQueLevar: p.oQueLevar?.trim() ? p.oQueLevar : (s.oQueLevar ?? p.oQueLevar),
+      local: p.local?.trim() ? p.local : (s.pontoRetorno ?? p.local),
+      informacoesAdicionais: p.informacoesAdicionais?.trim()
+        ? p.informacoesAdicionais
+        : (s.informacoesAdicionais ?? p.informacoesAdicionais),
+    };
+  });
+
+  return { ...v, passeios };
+}
+
 export function gerarPDFVoucher(v: Voucher, config: Config) {
-  const doc = new PDFVoucherBuilder().construir(v, config);
+  // Completa os detalhes do passeio a partir do catálogo antes de renderizar,
+  // para o PDF não sair sem "o que levar", ponto de encontro e informações.
+  const enriquecido = enriquecerPasseios(v, config);
+  const doc = new PDFVoucherBuilder().construir(enriquecido, config);
   // Se não couber em 1 página, reconstrói em modo compacto (tudo em 1 página)
   if (doc.getNumberOfPages() > 1) {
-    return new PDFVoucherBuilder(true).construir(v, config);
+    return new PDFVoucherBuilder(true).construir(enriquecido, config);
   }
   return doc;
 }
