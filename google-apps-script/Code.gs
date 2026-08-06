@@ -21,9 +21,11 @@ var ABAS = {
 };
 
 var SEGURANCA = {
-  // Enviada ao painel em todas as respostas. Quando o número aqui for maior
+  // Enviada ao painel em todas as respostas. Quando o número aqui for menor
   // que o esperado pelo site, o painel avisa que a implantação está velha.
-  versao: '3',
+  // v4: desconto (tipoDesconto/desconto) gravado na planilha + migração
+  //     automática de abas criadas com layout antigo.
+  versao: '4',
   tamanhoMaximoRequisicao: 300000,
   horasSessao: 8,
   maxTentativasLogin: 5,
@@ -200,6 +202,8 @@ function configurarBanco() {
       abaAtual.getRange(1, 1, 1, ABAS[nome].length).setValues([ABAS[nome]]);
       abaAtual.setFrozenRows(1);
       abaAtual.getRange(1, 1, 1, ABAS[nome].length).setFontWeight('bold');
+    } else {
+      migrarCabecalho(abaAtual, nome);
     }
   });
 
@@ -210,6 +214,55 @@ function configurarBanco() {
       gravar('Config', { chave: chave, valor: CONFIG_PADRAO[chave], atualizadoEm: agora() });
     });
   }
+}
+
+/**
+ * Atualiza abas criadas por versões antigas do Code.gs para o esquema atual.
+ *
+ * O cabeçalho só era escrito quando a aba nascia vazia; por isso planilhas
+ * antigas podem não ter as colunas novas (ex.: tipoDesconto e desconto). Com
+ * o cabeçalho defasado, cada gravação posiciona os valores pelo esquema ATUAL
+ * enquanto a leitura de linhas antigas usa o esquema em que foram gravadas —
+ * era isso que fazia o desconto "sumir" depois de salvar.
+ *
+ * A migração compara o cabeçalho com ABAS e, se estiver diferente, reescreve
+ * o cabeçalho e move cada valor para a coluna de mesmo nome. Colunas novas
+ * nascem vazias; colunas que não existem mais são descartadas. Roda sozinha
+ * na primeira requisição após reimplantar o Code.gs novo.
+ */
+function migrarCabecalho(s, nome) {
+  var cols = ABAS[nome];
+  var ultimaLinha = s.getLastRow();
+  var largura = Math.max(s.getLastColumn(), cols.length);
+
+  var cabAtual = s.getRange(1, 1, 1, largura).getValues()[0].map(function (c) {
+    return String(c === null || c === undefined ? '' : c).trim();
+  });
+
+  var igual = cabAtual.length === cols.length;
+  for (var c = 0; igual && c < cols.length; c++) {
+    if (cabAtual[c] !== cols[c]) igual = false;
+  }
+  if (igual) return;
+
+  var linhas = ultimaLinha > 1 ? s.getRange(2, 1, ultimaLinha - 1, largura).getValues() : [];
+  var novas = linhas
+    .filter(function (linha) {
+      return linha.some(function (v) { return v !== '' && v !== null; });
+    })
+    .map(function (linha) {
+      return cols.map(function (col) {
+        var origem = cabAtual.indexOf(col);
+        var valor = origem >= 0 ? linha[origem] : '';
+        return valor === null || valor === undefined ? '' : valor;
+      });
+    });
+
+  s.getRange(1, 1, ultimaLinha, largura).clearContent();
+  s.getRange(1, 1, 1, cols.length).setValues([cols]);
+  s.getRange(1, 1, 1, cols.length).setFontWeight('bold');
+  s.setFrozenRows(1);
+  if (novas.length) s.getRange(2, 1, novas.length, cols.length).setValues(novas);
 }
 
 /**

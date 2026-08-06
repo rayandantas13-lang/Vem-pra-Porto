@@ -70,7 +70,9 @@ Na aba `Vouchers`, além dos dados brutos, as colunas **servicos**, **datas** e 
 
 ### Sempre que o `Code.gs` mudar, reimplante
 
-O Google continua servindo a **versão publicada** do script: salvar o arquivo no editor não muda nada para o site. Se a implantação estiver velha, o painel conecta normalmente, mas o Apps Script **descarta campos que ainda não conhece** ao gravar — foi o que fazia "O que levar", "Informações adicionais" e a data/hora de volta sumirem depois de salvar.
+O Google continua servindo a **versão publicada** do script: salvar o arquivo no editor não muda nada para o site. Se a implantação estiver velha, o painel conecta normalmente, mas o Apps Script **descarta campos que ainda não conhece** ao gravar — foi o que fez o **desconto** sumir depois de atualizar a página (e, antes dele, "O que levar", "Informações adicionais" e a data/hora de volta).
+
+Planilhas criadas com o Code.gs antigo também são corrigidas sozinhas: na primeira requisição com o script novo, o cabeçalho da aba `Vouchers` ganha as colunas que faltam (ex.: `tipoDesconto` e `desconto`) e os dados já gravados são movidos para as colunas certas pelo nome do cabeçalho, sem perder nada.
 
 Por isso o script informa a própria versão ao painel. Quando ela está atrás da esperada, aparece um aviso amarelo no topo e a etapa **Versão do Apps Script** falha em **Configurações → Banco de dados → Testar conexão**.
 
