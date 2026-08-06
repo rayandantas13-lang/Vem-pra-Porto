@@ -98,7 +98,7 @@ export default function Vouchers() {
     return {
       total: vouchers.length,
       pessoas: ativos.reduce((s, v) => s + totalPessoas(v), 0),
-      faturado: ativos.reduce((s, v) => s + (Number(v.total) || 0), 0),
+      faturado: ativos.reduce((s, v) => s + totalComDesconto(v), 0),
       receber: ativos
         .filter((v) => v.status !== "concluido")
         .reduce((s, v) => s + aReceber(v), 0),

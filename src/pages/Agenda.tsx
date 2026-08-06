@@ -19,6 +19,7 @@ import {
   startOfWeek,
   STATUS_META,
   statusMeta,
+  totalComDesconto,
   totalPessoas,
 } from "@/lib/utils";
 import {
@@ -94,10 +95,10 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
     return {
       passeios: doPeriodo.length,
       pessoas: doPeriodo.reduce((s, e) => s + totalPessoas(e.v), 0),
-      receita: [...ids].reduce(
-        (s, id) => s + (Number(vouchers.find((v) => v.id === id)?.total) || 0),
-        0,
-      ),
+      receita: [...ids].reduce((s, id) => {
+        const v = vouchers.find((vv) => vv.id === id);
+        return s + (v ? totalComDesconto(v) : 0);
+      }, 0),
     };
   }, [eventos, dias, vouchers]);
 
@@ -406,7 +407,7 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
               <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-900 p-4 text-center text-white">
                 <div>
                   <p className="text-[10px] text-slate-400 uppercase">VALOR TOTAL</p>
-                  <p className="text-sm font-bold text-violet-300">{brl(aberto.v.total)}</p>
+                  <p className="text-sm font-bold text-violet-300">{brl(totalComDesconto(aberto.v))}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 uppercase">ENTRADA PAGA</p>
