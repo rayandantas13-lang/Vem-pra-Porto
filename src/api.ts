@@ -21,11 +21,12 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
 /**
  * Versão do google-apps-script/Code.gs que este site espera encontrar
  * publicado. Quando a planilha responde uma versão menor, o Apps Script no ar
- * é anterior aos campos novos (o que levar, informações adicionais, data/hora
- * de volta) e descarta silenciosamente esses dados ao salvar. Nesse caso o
- * painel avisa em vez de deixar o usuário perder texto sem perceber.
+ * é anterior aos campos novos (desconto, o que levar, informações adicionais,
+ * data/hora de volta) e descarta silenciosamente esses dados ao salvar — era
+ * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
+ * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 3;
+export const VERSAO_ESPERADA = 4;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -34,10 +35,11 @@ export function versaoDesatualizada(versao: unknown) {
 }
 
 export const AVISO_IMPLANTACAO_ANTIGA =
-  "O Apps Script publicado está desatualizado: os campos “O que levar”, " +
-  "“Informações adicionais” e a data/hora de volta não são gravados na planilha. " +
-  "Abra o Apps Script, cole o Code.gs mais recente e use Implantar → Gerenciar " +
-  "implantações → ✏️ → Versão: Nova versão.";
+  "O Apps Script publicado está desatualizado: o desconto (e os campos “O que " +
+  "levar”, “Informações adicionais” e a data/hora de volta) não é gravado na " +
+  "planilha — por isso ele some depois de atualizar a página. Abra o Apps " +
+  "Script, cole o Code.gs mais recente e use Implantar → Gerenciar implantações " +
+  "→ ✏️ → Versão: Nova versão.";
 
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
 const ACOES_REPETIVEIS = new Set([
