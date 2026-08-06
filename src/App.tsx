@@ -6,6 +6,7 @@ import Dashboard from "@/pages/Dashboard";
 import Agenda from "@/pages/Agenda";
 import Vouchers from "@/pages/Vouchers";
 import Configuracoes from "@/pages/Configuracoes";
+import Financeiro from "@/pages/Financeiro";
 import { AVISO_IMPLANTACAO_ANTIGA } from "@/api";
 import { dataCompleta, hoje, iniciais, totalPessoas } from "@/lib/utils";
 import { cn } from "@/utils/cn";
@@ -14,6 +15,7 @@ const NAV: { id: string; label: string; icone: IconName; desc: string; admin?: b
   { id: "inicio", label: "Início", icone: "grid", desc: "Visão geral do dia" },
   { id: "vouchers", label: "Vouchers", icone: "ticket", desc: "Criar, enviar e gerar PDF" },
   { id: "agenda", label: "Agenda", icone: "calendar", desc: "Passeios por dia e hora" },
+  { id: "financeiro", label: "Financeiro", icone: "money", desc: "Gastos e resultado real" },
   {
     id: "config",
     label: "Configurações",
@@ -93,6 +95,8 @@ function Painel() {
         return <Vouchers />;
       case "agenda":
         return <Agenda ir={ir} />;
+      case "financeiro":
+        return <Financeiro />;
       case "config":
         return ehAdmin ? <Configuracoes /> : null;
       default:

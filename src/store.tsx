@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Config, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
+import type { Config, GastoOperacional, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
 import { api, modoLocal, versaoDesatualizada } from "@/api";
 import { CONFIG_PADRAO } from "@/data/seed";
 import { normalizarStatus, uid } from "@/lib/utils";
@@ -64,10 +64,13 @@ interface Ctx {
   recarregar: () => void;
 
   vouchers: Voucher[];
+  gastos: GastoOperacional[];
   config: Config;
 
   salvarVoucher: (v: Voucher) => Promise<void>;
   removerVoucher: (id: ID) => Promise<void>;
+  salvarGasto: (g: GastoOperacional) => Promise<void>;
+  removerGasto: (id: ID) => Promise<void>;
   mudarStatus: (id: ID, status: StatusVoucher) => Promise<void>;
   salvarConfig: (c: Config) => Promise<void>;
 
@@ -86,6 +89,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [recarga, setRecarga] = useState(0);
 
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [gastos, setGastos] = useState<GastoOperacional[]>([]);
   const [config, setConfig] = useState<Config>(CONFIG_PADRAO);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -160,6 +164,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Status fora da lista (ex.: "confirmado" de versões antigas) é
         // normalizado para "pendente" para a tela nunca quebrar.
         setVouchers((d.vouchers ?? []).map((v) => ({ ...v, status: normalizarStatus(v.status) })));
+        setGastos(d.gastos ?? []);
         setConfig({ ...CONFIG_PADRAO, ...(d.config ?? {}) });
         // Uma implantação antiga responde normalmente, mas descarta os campos
         // novos ao gravar. Avisamos para o texto não sumir sem explicação.
@@ -218,6 +223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       recarregar: () => setRecarga((n) => n + 1),
 
       vouchers,
+      gastos,
       config,
 
       salvarVoucher: async (v) => {
@@ -234,9 +240,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removerVoucher: async (id) => {
         const antes = vouchers;
         setVouchers((l) => l.filter((v) => v.id !== id));
-        await executar(() => api.removerVoucher(token, id), "Voucher excluído.", () =>
-          setVouchers(antes),
-        );
+        await executar(() => api.removerVoucher(token, id), "Voucher excluído.", () => setVouchers(antes));
+      },
+      salvarGasto: async (g) => {
+        const antes = gastos;
+        setGastos((l) => [g, ...l]);
+        await executar(() => api.salvarGasto(token, g), "Gasto registrado.", () => setGastos(antes));
+      },
+      removerGasto: async (id) => {
+        const antes = gastos;
+        setGastos((l) => l.filter((g) => g.id !== id));
+        await executar(() => api.removerGasto(token, id), "Gasto excluído.", () => setGastos(antes));
       },
       mudarStatus: async (id, status) => {
         const antes = vouchers;
@@ -264,6 +278,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       erroCarga,
       apiDesatualizada,
       vouchers,
+      gastos,
       config,
       toasts,
       token,

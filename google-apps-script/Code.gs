@@ -15,6 +15,7 @@ var ABAS = {
   Usuarios: ['id', 'nome', 'email', 'usuario', 'papel', 'senhaHash', 'salt', 'ativo', 'criadoEm', 'ultimoAcesso'],
   Vouchers: ['id', 'codigo', 'clientes', 'pessoas', 'hotel', 'telefone', 'contatoExtra', 'passeios',
              'servicos', 'datas', 'total', 'tipoDesconto', 'desconto', 'entrada', 'aReceber', 'formaPagamento', 'observacoes', 'status', 'criadoEm'],
+  Gastos: ['id', 'descricao', 'categoria', 'valor', 'data', 'observacao', 'criadoEm'], 
   Config: ['chave', 'valor', 'atualizadoEm'],
   Sessoes: ['id', 'token', 'usuarioId', 'expiraEm', 'criadoEm'],
   Auditoria: ['id', 'usuarioId', 'usuario', 'acao', 'recurso', 'recursoId', 'detalhes', 'criadoEm']
@@ -25,7 +26,7 @@ var SEGURANCA = {
   // que o esperado pelo site, o painel avisa que a implantação está velha.
   // v4: desconto (tipoDesconto/desconto) gravado na planilha + migração
   //     automática de abas criadas com layout antigo.
-  versao: '4',
+  versao: '5',
   tamanhoMaximoRequisicao: 300000,
   horasSessao: 8,
   maxTentativasLogin: 5,
@@ -128,7 +129,7 @@ function processar(req) {
         return ok(null);
 
       case 'dados':
-        return ok({ vouchers: lerVouchers(), config: lerConfig(), versao: SEGURANCA.versao });
+        return ok({ vouchers: lerVouchers(), gastos: lerGastos(), config: lerConfig(), versao: SEGURANCA.versao });
 
       case 'salvarVoucher': {
         var voucher = salvarVoucher(req.voucher);
@@ -140,6 +141,19 @@ function processar(req) {
         var voucherId = identificador(req.id, 'Voucher');
         remover('Vouchers', voucherId);
         auditar(auth.usuario, 'REMOVER', 'Voucher', voucherId, '');
+        return ok(null);
+      }
+
+      case 'salvarGasto': {
+        var gasto = salvarGasto(req.gasto);
+        auditar(auth.usuario, 'SALVAR', 'Gasto', gasto.id, gasto.descricao);
+        return ok(gasto);
+      }
+
+      case 'removerGasto': {
+        var gastoId = identificador(req.id, 'Gasto');
+        remover('Gastos', gastoId);
+        auditar(auth.usuario, 'REMOVER', 'Gasto', gastoId, '');
         return ok(null);
       }
 
@@ -604,6 +618,29 @@ function salvarVoucher(entrada) {
     criadoEm: v.criadoEm
   });
   return v;
+}
+
+/* ---------------- Gastos operacionais ---------------- */
+
+function lerGastos() {
+  return registros('Gastos').map(function (g) {
+    return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: Number(g.valor || 0), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
+  });
+}
+
+function salvarGasto(entrada) {
+  if (!entrada || Object.prototype.toString.call(entrada) !== '[object Object]') throw new Error('Gasto inválido.');
+  var gasto = {
+    id: entrada.id ? identificador(entrada.id, 'Gasto') : Utilities.getUuid(),
+    descricao: texto(entrada.descricao, 200, true, 'Descrição'),
+    categoria: texto(entrada.categoria, 80, true, 'Categoria'),
+    valor: numero(entrada.valor, 0.01, 100000000, 'Valor'),
+    data: dataSegura(entrada.data),
+    observacao: texto(entrada.observacao || '', 1000, false, 'Observação'),
+    criadoEm: texto(entrada.criadoEm || agora(), 40, true, 'Data de criação')
+  };
+  gravar('Gastos', gasto);
+  return gasto;
 }
 
 /* ---------------- Config ---------------- */
