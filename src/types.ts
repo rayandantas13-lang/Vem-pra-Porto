@@ -87,8 +87,19 @@ export interface Config {
 
 }
 
+export interface GastoOperacional {
+  id: ID;
+  descricao: string;
+  categoria: string;
+  valor: number;
+  data: string;
+  observacao?: string;
+  criadoEm: string;
+}
+
 export interface DadosApi {
   vouchers: Voucher[];
+  gastos?: GastoOperacional[];
   config: Config;
   /** Versão do Code.gs publicado. Ausente em implantações antigas. */
   versao?: string;

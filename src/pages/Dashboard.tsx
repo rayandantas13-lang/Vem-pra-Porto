@@ -48,7 +48,7 @@ function Kpi({
 }
 
 export default function Dashboard({ ir }: { ir: (r: string) => void }) {
-  const { vouchers, config } = useStore();
+  const { vouchers, gastos, config } = useStore();
   const h = hoje();
 
   const d = useMemo(() => {
@@ -92,13 +92,14 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
       maxSerie: Math.max(1, ...serie.map((s) => s.pessoas)),
       pessoasHoje: doDia.reduce((s, e) => s + totalPessoas(e.v), 0),
       receitaMes: doMes.reduce((s, v) => s + totalComDesconto(v), 0),
+      gastosMes: gastos.filter((g) => g.data.startsWith(mes)).reduce((s, g) => s + g.valor, 0),
       aReceberTotal: ativos
         .filter((v) => v.status !== "concluido")
         .reduce((s, v) => s + aReceber(v), 0),
       pendentes: vouchers.filter((v) => v.status === "pendente").length,
       totalMes: doMes.length,
     };
-  }, [vouchers, h]);
+  }, [vouchers, gastos, h]);
 
   const LinhaEvento = ({
     v,
@@ -194,11 +195,11 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
           cor="bg-emerald-50 text-emerald-600"
         />
         <Kpi
-          icone="clock"
-          rotulo="A receber"
-          valor={brl(d.aReceberTotal)}
-          detalhe={`${d.pendentes} voucher(s) pendente(s)`}
-          cor="bg-amber-50 text-amber-600"
+          icone="money"
+          rotulo="Resultado real do mês"
+          valor={brl(d.receitaMes - d.gastosMes)}
+          detalhe={`${brl(d.gastosMes)} em gastos operacionais`}
+          cor={d.receitaMes - d.gastosMes >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}
         />
       </div>
 

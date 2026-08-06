@@ -1,4 +1,4 @@
-import type { Config, DadosApi, Sessao, Usuario, Voucher } from "@/types";
+import type { Config, DadosApi, GastoOperacional, Sessao, Usuario, Voucher } from "@/types";
 
 
 interface RespostaApi<T = unknown> {
@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 4;
+export const VERSAO_ESPERADA = 5;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -396,6 +396,8 @@ export const api = {
   salvarVoucher: (token: string, voucher: Voucher) =>
     req<Voucher>({ acao: "salvarVoucher", token, voucher }),
   removerVoucher: (token: string, id: string) => req<void>({ acao: "removerVoucher", token, id }),
+  salvarGasto: (token: string, gasto: GastoOperacional) => req<GastoOperacional>({ acao: "salvarGasto", token, gasto }),
+  removerGasto: (token: string, id: string) => req<void>({ acao: "removerGasto", token, id }),
 
   salvarConfig: (token: string, config: Config) =>
     req<Config>({ acao: "salvarConfig", token, config }),

@@ -1,4 +1,4 @@
-import type { Config, Sessao, Usuario, Voucher } from "@/types";
+import type { Config, GastoOperacional, Sessao, Usuario, Voucher } from "@/types";
 import { CONFIG_PADRAO, criarVouchersExemplo } from "@/data/seed";
 import { uid } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ interface UsuarioLocal extends Usuario {
 interface BancoLocal {
   usuarios: UsuarioLocal[];
   vouchers: Voucher[];
+  gastos: GastoOperacional[];
   config: Config;
   sessoes: { token: string; usuarioId: string; expiraEm: string }[];
 }
@@ -37,6 +38,7 @@ function criarBanco(): BancoLocal {
   return {
     usuarios: [],
     vouchers: criarVouchersExemplo(),
+    gastos: [],
     config: CONFIG_PADRAO,
     sessoes: [],
   };
@@ -74,6 +76,7 @@ function ler(): BancoLocal {
     // Mescla com o padrão para que campos novos existam em bancos antigos.
     p.config = { ...CONFIG_PADRAO, ...(p.config ?? {}) };
     if (!p.vouchers) p.vouchers = [];
+    if (!Array.isArray(p.gastos)) p.gastos = [];
     gravar(p);
     return p;
   } catch {
@@ -184,7 +187,7 @@ export async function requisicaoLocal<T>(payload: Record<string, unknown>): Prom
 
     case "dados":
       autenticar(db, payload.token);
-      saida = { vouchers: db.vouchers, config: db.config };
+      saida = { vouchers: db.vouchers, gastos: db.gastos, config: db.config };
       break;
 
     case "salvarVoucher": {
@@ -200,6 +203,19 @@ export async function requisicaoLocal<T>(payload: Record<string, unknown>): Prom
     case "removerVoucher":
       autenticar(db, payload.token);
       db.vouchers = db.vouchers.filter((v) => v.id !== String(payload.id));
+      break;
+
+    case "salvarGasto": {
+      autenticar(db, payload.token);
+      const gasto = payload.gasto as GastoOperacional;
+      const i = db.gastos.findIndex((x) => x.id === gasto.id);
+      if (i === -1) db.gastos.unshift(gasto); else db.gastos[i] = gasto;
+      saida = gasto;
+      break;
+    }
+    case "removerGasto":
+      autenticar(db, payload.token);
+      db.gastos = db.gastos.filter((g) => g.id !== String(payload.id));
       break;
 
     case "salvarConfig":
