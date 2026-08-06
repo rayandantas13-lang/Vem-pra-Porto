@@ -405,16 +405,16 @@ export default function Agenda({ ir }: { ir: (r: string) => void }) {
 
               <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-900 p-4 text-center text-white">
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase">Entrada</p>
+                  <p className="text-[10px] text-slate-400 uppercase">VALOR TOTAL</p>
+                  <p className="text-sm font-bold text-violet-300">{brl(aberto.v.total)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">ENTRADA PAGA</p>
                   <p className="text-sm font-bold">{brl(aberto.v.entrada)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase">A receber</p>
+                  <p className="text-[10px] text-slate-400 uppercase">A RECEBER</p>
                   <p className="text-sm font-bold">{brl(aReceber(aberto.v))}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase">Total</p>
-                  <p className="text-sm font-bold text-violet-300">{brl(aberto.v.total)}</p>
                 </div>
               </div>
 

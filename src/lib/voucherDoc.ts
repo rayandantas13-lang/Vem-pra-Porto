@@ -316,10 +316,9 @@ class PDFVoucherBuilder {
     const colWidth = this.W / 3;
     const cx = (i: number) => this.M + i * colWidth + colWidth / 2;
 
-    // Ordem das colunas: VALOR TOTAL → ENTRADA PAGA → A RECEBER.
+    // Ordem das colunas: VALOR TOTAL · ENTRADA PAGA · A RECEBER
 
-    // VALOR TOTAL (início) — com desconto mostra o total original riscado e o
-    // valor com desconto logo abaixo (tudo em uma linha/coluna).
+    // VALOR TOTAL (esquerda)
     this.texto("VALOR TOTAL", cx(0), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
     if (temDesconto) {
       const original = brl(total);
@@ -340,7 +339,7 @@ class PDFVoucherBuilder {
     this.texto("ENTRADA PAGA", cx(1), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
     this.texto(brl(entrada), cx(1), this.y + (temDesconto ? 19 : 16.5), 12, "bold", CORES.branco, "center");
 
-    // A RECEBER (final)
+    // A RECEBER (direita)
     this.texto("A RECEBER", cx(2), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
     this.texto(
       brl(aReceberValor),
