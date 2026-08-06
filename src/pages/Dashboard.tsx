@@ -17,6 +17,7 @@ import {
   primeiraData,
   rotuloRelativo,
   statusMeta,
+  totalComDesconto,
   totalPessoas,
 } from "@/lib/utils";
 import { cn } from "@/utils/cn";
@@ -90,7 +91,7 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
       serie,
       maxSerie: Math.max(1, ...serie.map((s) => s.pessoas)),
       pessoasHoje: doDia.reduce((s, e) => s + totalPessoas(e.v), 0),
-      receitaMes: doMes.reduce((s, v) => s + (Number(v.total) || 0), 0),
+      receitaMes: doMes.reduce((s, v) => s + totalComDesconto(v), 0),
       aReceberTotal: ativos
         .filter((v) => v.status !== "concluido")
         .reduce((s, v) => s + aReceber(v), 0),
