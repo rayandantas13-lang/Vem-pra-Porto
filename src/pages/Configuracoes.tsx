@@ -241,7 +241,7 @@ export default function Configuracoes() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Cartao className="p-5">
           <div className="mb-4 flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+            <span className="grid size-9 place-items-center rounded-xl bg-sky-50 text-sky-600">
               <Icon name="settings" className="size-4" />
             </span>
             <div>
@@ -637,7 +637,7 @@ export default function Configuracoes() {
       <Cartao>
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-violet-50 text-violet-600">
+            <span className="grid size-9 place-items-center rounded-xl bg-amber-50 text-amber-600">
               <Icon name="users" className="size-4" />
             </span>
             <div>
@@ -668,7 +668,7 @@ export default function Configuracoes() {
                   <Selo
                     className={
                       u.papel === "admin"
-                        ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                        ? "bg-sky-50 text-sky-700 ring-sky-200"
                         : "bg-slate-100 text-slate-600 ring-slate-200"
                     }
                   >
@@ -742,7 +742,7 @@ export default function Configuracoes() {
             </>,
           ].map((t, i) => (
             <li key={i} className="flex gap-3">
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">
                 {i + 1}
               </span>
               <span>{t}</span>

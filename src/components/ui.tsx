@@ -7,8 +7,8 @@ import { Icon, type IconName } from "@/components/Icon";
 type Variante = "primario" | "suave" | "contorno" | "fantasma" | "perigo" | "sucesso";
 const VAR: Record<Variante, string> = {
   primario:
-    "bg-indigo-600 text-white shadow-sm shadow-indigo-600/25 hover:bg-indigo-700 active:bg-indigo-800",
-  suave: "bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
+    "bg-sky-600 text-white shadow-sm shadow-sky-600/25 hover:bg-sky-700 active:bg-sky-800",
+  suave: "bg-sky-50 text-sky-700 hover:bg-sky-100",
   contorno: "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 hover:ring-slate-300",
   fantasma: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
   perigo: "bg-rose-600 text-white hover:bg-rose-700",
@@ -32,7 +32,7 @@ export function Botao({
       {...props}
       disabled={props.disabled || carregando}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
         VAR[variante],
         className,
       )}
@@ -59,7 +59,7 @@ export function BotaoIcone({
       title={titulo}
       aria-label={titulo}
       className={cn(
-        "inline-grid size-9 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none",
+        "inline-grid size-9 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-sky-500 outline-none",
         className,
       )}
     >
@@ -70,7 +70,7 @@ export function BotaoIcone({
 
 /* ---------------- Campos ---------------- */
 export const BASE_CAMPO =
-  "w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-sm text-slate-900 ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-slate-50 disabled:text-slate-400";
+  "w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-sm text-slate-900 ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 outline-none disabled:bg-slate-50 disabled:text-slate-400";
 
 export function Campo({
   rotulo,
@@ -255,7 +255,7 @@ export function Aviso({
   const map = {
     ok: "bg-emerald-50 text-emerald-800 ring-emerald-200",
     erro: "bg-rose-50 text-rose-700 ring-rose-200",
-    info: "bg-indigo-50 text-indigo-800 ring-indigo-200",
+    info: "bg-sky-50 text-sky-800 ring-sky-200",
     alerta: "bg-amber-50 text-amber-800 ring-amber-200",
   } as const;
   const padrao: Record<string, IconName> = {
@@ -363,7 +363,7 @@ export function Modal({
   );
 }
 
-export function Progresso({ pct, cor = "bg-indigo-500" }: { pct: number; cor?: string }) {
+export function Progresso({ pct, cor = "bg-sky-500" }: { pct: number; cor?: string }) {
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
       <div

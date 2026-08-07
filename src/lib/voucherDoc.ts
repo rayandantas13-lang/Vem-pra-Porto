@@ -19,15 +19,15 @@ import {
    CORES
    ============================================================ */
 const CORES = {
-  primaria: [79, 70, 229] as [number, number, number],
-  secundaria: [124, 58, 237] as [number, number, number],
+  primaria: [3, 105, 161] as [number, number, number],      // azul oceano #0369A1
+  secundaria: [217, 119, 6] as [number, number, number],    // dourado #D97706
   escuro: [15, 23, 42] as [number, number, number],
   cinza: [100, 116, 139] as [number, number, number],
   cinzaClaro: [148, 163, 184] as [number, number, number],
   fundo: [241, 245, 249] as [number, number, number],
   branco: [255, 255, 255] as [number, number, number],
   sucesso: [34, 197, 94] as [number, number, number],
-  destaque: [167, 139, 250] as [number, number, number],
+  destaque: [251, 191, 36] as [number, number, number],     // dourado claro #FBBF24
 };
 
 /** Cor do selo de status no PDF (combinando com as cores do app). */
@@ -137,16 +137,36 @@ class PDFVoucherBuilder {
   private construirCabecalho(config: Config, voucher: Voucher) {
     const ALT_BANNER = 30;
 
-    // Fundo
+    // Fundo azul oceano
     this.doc.setFillColor(...CORES.primaria);
     this.doc.rect(0, 0, this.L, ALT_BANNER, "F");
 
-    // Detalhe triangular
+    // Detalhe triangular dourado
     this.doc.setFillColor(...CORES.secundaria);
     this.doc.triangle(this.L - 55, 0, this.L, 0, this.L, ALT_BANNER, "F");
 
+    // Mini logo: sol dourado
+    this.doc.setFillColor(253, 230, 138);
+    this.doc.circle(this.M + 2, 8, 3, "F");
+    this.doc.setFillColor(251, 191, 36);
+    this.doc.circle(this.M + 2, 8, 2, "F");
+
+    // Mini logo: onda branca
+    this.doc.setDrawColor(255, 255, 255);
+    this.doc.setLineWidth(0.5);
+    // Onda usando segmentos de linha curvos (simplificado)
+    const waveY = 26;
+    const waveX = this.M - 2;
+    for (let i = 0; i < 3; i++) {
+      const x1 = waveX + i * 8;
+      const x2 = x1 + 4;
+      const x3 = x1 + 8;
+      this.doc.line(x1, waveY, x2, waveY - 2.5);
+      this.doc.line(x2, waveY - 2.5, x3, waveY);
+    }
+
     // Nome da empresa
-    this.texto(config.empresa, this.M, 13, 16, "bold", CORES.branco);
+    this.texto(config.empresa, this.M + 26, 13, 16, "bold", CORES.branco);
 
     // Informações da empresa em uma linha
     const subParts = [
@@ -156,11 +176,11 @@ class PDFVoucherBuilder {
     ].filter(Boolean);
 
     if (subParts.length) {
-      this.texto(subParts.join("  ·  "), this.M, 21, 7.5, "normal", [224, 231, 255]);
+      this.texto(subParts.join("  ·  "), this.M, 21, 7.5, "normal", [253, 230, 138]);
     }
 
     // Voucher à direita
-    this.texto("VOUCHER", this.L - this.M, 9.5, 8, "bold", [224, 231, 255], "right");
+    this.texto("VOUCHER", this.L - this.M, 9.5, 8, "bold", [253, 230, 138], "right");
     this.texto(voucher.codigo, this.L - this.M, 17.5, 16, "bold", CORES.branco, "right");
     this.texto(
       `Emitido em ${dataBR(voucher.criadoEm.slice(0, 10))}`,
@@ -168,7 +188,7 @@ class PDFVoucherBuilder {
       23.5,
       7.5,
       "normal",
-      [224, 231, 255],
+      [253, 230, 138],
       "right"
     );
 

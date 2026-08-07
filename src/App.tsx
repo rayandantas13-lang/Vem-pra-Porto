@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { StoreProvider, useStore } from "@/store";
 import { Icon, type IconName } from "@/components/Icon";
+import { LogoMarca, LogoIcon } from "@/components/Logo";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Agenda from "@/pages/Agenda";
@@ -126,7 +127,7 @@ function Painel() {
               className={cn(
                 "grid size-8 shrink-0 place-items-center rounded-lg transition-colors",
                 ativo
-                  ? "bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+                  ? "bg-gradient-to-br from-sky-500 to-amber-500 text-white"
                   : "bg-white/5 text-slate-400 group-hover:text-white",
               )}
             >
@@ -136,7 +137,7 @@ function Painel() {
               <span className="block truncate text-sm font-semibold">{n.label}</span>
               <span className="block truncate text-[11px] text-slate-500">{n.desc}</span>
             </span>
-            {ativo && <i className="size-1.5 rounded-full bg-indigo-400" />}
+            {ativo && <i className="size-1.5 rounded-full bg-sky-400" />}
           </button>
         );
       })}
@@ -144,29 +145,32 @@ function Painel() {
   );
 
   const Marca = () => (
-    <div className="flex items-center gap-3 px-1">
-      <div className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-600/30">
-        <Icon name="ticket" className="size-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-extrabold tracking-tight text-white">{config.empresa}</p>
-        <p className="truncate text-[11px] text-slate-400">Controle de vouchers</p>
-      </div>
-    </div>
+    <LogoMarca
+      size={40}
+      subtitulo={local ? "Modo local" : "Controle de vouchers"}
+      subClassName={local ? "text-amber-400" : "text-sky-300"}
+    />
   );
 
   return (
     <div className="min-h-screen">
-      <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-72 flex-col justify-between bg-slate-900 p-4 lg:flex">
+      <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-72 flex-col justify-between overflow-hidden bg-gradient-to-b from-[#0C2D48] via-[#0F3460] to-[#0C2D48] p-4 lg:flex">
+        {/* Onda decorativa no fundo do sidebar */}
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 opacity-[0.04]">
+          <svg viewBox="0 0 288 120" fill="none" className="w-full">
+            <path d="M0 60 C48 30, 96 90, 144 60 C192 30, 240 90, 288 60 V120 H0 Z" fill="white"/>
+            <path d="M0 80 C48 55, 96 105, 144 80 C192 55, 240 105, 288 80 V120 H0 Z" fill="white" opacity="0.5"/>
+          </svg>
+        </div>
         <div className="space-y-6">
           <Marca />
           <Nav />
         </div>
         <div className="space-y-3">
-          <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 p-4 text-white">
-            <p className="text-[11px] font-bold tracking-wider text-indigo-200 uppercase">Hoje</p>
+          <div className="rounded-2xl bg-gradient-to-br from-sky-600 via-sky-700 to-cyan-800 p-4 text-white shadow-lg shadow-sky-900/30">
+            <p className="text-[11px] font-bold tracking-wider text-amber-300 uppercase">Hoje</p>
             <p className="mt-1 text-2xl font-extrabold">{hojeInfo.passeios} passeios</p>
-            <p className="text-xs text-indigo-100">{hojeInfo.pessoas} pessoas para atender</p>
+            <p className="text-xs text-sky-100">{hojeInfo.pessoas} pessoas para atender</p>
             <button
               onClick={() => ir("vouchers")}
               className="mt-3 w-full rounded-lg bg-white/15 py-2 text-xs font-bold ring-1 ring-white/20 transition hover:bg-white/25"
@@ -183,7 +187,7 @@ function Painel() {
       {menuAberto && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-slate-950/60" onClick={() => setMenuAberto(false)} />
-          <aside className="anim-slide absolute inset-y-0 left-0 flex w-72 flex-col justify-between bg-slate-900 p-4">
+          <aside className="anim-slide absolute inset-y-0 left-0 flex w-72 flex-col justify-between bg-gradient-to-b from-[#0C2D48] via-[#0F3460] to-[#0C2D48] p-4">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <Marca />
@@ -264,7 +268,7 @@ function Painel() {
         <main className="print-full mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
           {carregando ? (
             <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-slate-400">
-              <Icon name="refresh" className="size-7 animate-spin text-indigo-500" />
+              <Icon name="refresh" className="size-7 animate-spin text-sky-500" />
               <span className="text-sm font-medium">
                 {local ? "Carregando dados..." : "Carregando dados do Google Sheets..."}
               </span>
@@ -324,7 +328,7 @@ function Porta() {
   if (verificando)
     return (
       <div className="grid min-h-screen place-items-center bg-slate-100">
-        <Icon name="refresh" className="size-7 animate-spin text-indigo-500" />
+        <Icon name="refresh" className="size-7 animate-spin text-sky-500" />
       </div>
     );
 
