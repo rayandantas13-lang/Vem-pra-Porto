@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { logoDataUrl } from "@/assets/logoData";
 import type { Config, StatusVoucher, Voucher } from "@/types";
 import {
   aReceber,
@@ -145,25 +146,10 @@ class PDFVoucherBuilder {
     this.doc.setFillColor(...CORES.secundaria);
     this.doc.triangle(this.L - 55, 0, this.L, 0, this.L, ALT_BANNER, "F");
 
-    // Mini logo: sol dourado
-    this.doc.setFillColor(253, 230, 138);
-    this.doc.circle(this.M + 2, 8, 3, "F");
-    this.doc.setFillColor(251, 191, 36);
-    this.doc.circle(this.M + 2, 8, 2, "F");
+    // Marca oficial enviada pelo cliente.
+    // Ela é embutida no bundle para funcionar também no modo offline.
+    this.doc.addImage(logoDataUrl, "PNG", this.M - 1, 3, 20, 20);
 
-    // Mini logo: onda branca
-    this.doc.setDrawColor(255, 255, 255);
-    this.doc.setLineWidth(0.5);
-    // Onda usando segmentos de linha curvos (simplificado)
-    const waveY = 26;
-    const waveX = this.M - 2;
-    for (let i = 0; i < 3; i++) {
-      const x1 = waveX + i * 8;
-      const x2 = x1 + 4;
-      const x3 = x1 + 8;
-      this.doc.line(x1, waveY, x2, waveY - 2.5);
-      this.doc.line(x2, waveY - 2.5, x3, waveY);
-    }
 
     // Nome da empresa
     this.texto(config.empresa, this.M + 26, 13, 16, "bold", CORES.branco);
