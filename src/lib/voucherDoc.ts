@@ -136,7 +136,7 @@ class PDFVoucherBuilder {
 
   // 1. CABEÇALHO
   private construirCabecalho(config: Config, voucher: Voucher) {
-    const ALT_BANNER = 30;
+    const ALT_BANNER = 40;
 
     // Fundo azul oceano
     this.doc.setFillColor(...CORES.primaria);
@@ -148,21 +148,16 @@ class PDFVoucherBuilder {
 
     // Marca oficial enviada pelo cliente.
     // Ela é embutida no bundle para funcionar também no modo offline.
-    this.doc.addImage(logoDataUrl, "PNG", this.M - 1, 3, 20, 20);
+    // Logo maior e mais destacada no cabeçalho.
+    this.doc.addImage(logoDataUrl, "PNG", this.M - 1, 5, 30, 30);
 
 
     // Nome da empresa
-    this.texto(config.empresa, this.M + 26, 13, 16, "bold", CORES.branco);
+    this.texto(config.empresa, this.M + 34, 15, 18, "bold", CORES.branco);
 
-    // Informações da empresa em uma linha
-    const subParts = [
-      config.cnpj ? `CNPJ: ${config.cnpj}` : "",
-      config.instagram,
-      config.telefone
-    ].filter(Boolean);
-
-    if (subParts.length) {
-      this.texto(subParts.join("  ·  "), this.M, 21, 7.5, "normal", [253, 230, 138]);
+    // Instagram da empresa abaixo do nome
+    if (config.instagram) {
+      this.texto(config.instagram, this.M + 34, 24, 9, "normal", [253, 230, 138]);
     }
 
     // Voucher à direita
