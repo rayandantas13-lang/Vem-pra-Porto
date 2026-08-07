@@ -146,10 +146,9 @@ class PDFVoucherBuilder {
     this.doc.setFillColor(...CORES.secundaria);
     this.doc.triangle(this.L - 55, 0, this.L, 0, this.L, ALT_BANNER, "F");
 
-    // Marca oficial enviada pelo cliente.
-    // Ela é embutida no bundle para funcionar também no modo offline.
-    // Logo maior e mais destacada no cabeçalho.
-    this.doc.addImage(logoDataUrl, "PNG", this.M - 1, 5, 30, 30);
+    // Marca oficial (PNG leve e quadrado) embutida no bundle para offline.
+    // Mantém proporção 1:1 para não espremer o círculo da logo.
+    this.doc.addImage(logoDataUrl, "PNG", this.M - 1, 5, 30, 30, undefined, "FAST");
 
 
     // Nome da empresa
