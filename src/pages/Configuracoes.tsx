@@ -29,6 +29,7 @@ import {
 } from "@/components/ui";
 import {
   iniciais,
+  mascaraCnpj,
   mascaraTelefone,
   MENSAGEM_VOUCHER_PADRAO,
   mensagemVoucher,
@@ -256,7 +257,7 @@ export default function Configuracoes() {
             <Campo rotulo="CNPJ">
               <Entrada
                 value={form.cnpj}
-                onChange={(e) => set({ cnpj: e.target.value })}
+                onChange={(e) => set({ cnpj: mascaraCnpj(e.target.value) })}
                 placeholder="00.000.000/0001-00"
               />
             </Campo>

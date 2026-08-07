@@ -161,6 +161,13 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
             <p className="mt-1.5 text-sm text-sky-100">
               {d.pendentes} voucher(s) pendente(s) · {brl(d.aReceberTotal)} a receber
             </p>
+            {(config.cnpj || config.telefone) && (
+              <p className="mt-1 text-xs text-sky-100/75">
+                {config.cnpj && <span>CNPJ {config.cnpj}</span>}
+                {config.cnpj && config.telefone && <span> · </span>}
+                {config.telefone && <span>Tel: {config.telefone}</span>}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
