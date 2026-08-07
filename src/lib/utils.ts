@@ -144,7 +144,7 @@ export const iniciais = (nome: string) =>
     .join("");
 
 const CORES = [
-  "from-indigo-500 to-violet-500",
+  "from-sky-500 to-amber-500",
   "from-emerald-500 to-teal-500",
   "from-amber-500 to-orange-500",
   "from-rose-500 to-pink-500",

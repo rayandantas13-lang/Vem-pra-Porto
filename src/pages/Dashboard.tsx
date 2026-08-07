@@ -116,9 +116,9 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
   }) => (
     <li
       onClick={() => ir("vouchers")}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-indigo-50/50"
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-sky-50/50"
     >
-      <div className="grid w-14 shrink-0 place-items-center rounded-lg bg-indigo-50 py-1.5 text-xs font-extrabold text-indigo-700">
+      <div className="grid w-14 shrink-0 place-items-center rounded-lg bg-sky-50 py-1.5 text-xs font-extrabold text-sky-700">
         {hora || dataBR(data).slice(0, 5)}
       </div>
       <div className="min-w-0 flex-1">
@@ -138,12 +138,19 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 p-6 text-white shadow-lg shadow-indigo-600/20 sm:p-8">
-        <div className="absolute -top-16 -right-10 size-56 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute right-32 -bottom-24 size-56 rounded-full bg-violet-400/20 blur-3xl" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0C4A6E] via-sky-700 to-[#155E75] p-6 text-white shadow-lg shadow-sky-800/30 sm:p-8">
+        <div className="absolute -top-16 -right-10 size-56 rounded-full bg-amber-400/15 blur-2xl" />
+        <div className="absolute right-32 -bottom-24 size-56 rounded-full bg-sky-400/20 blur-3xl" />
+        <div className="absolute top-4 right-4 opacity-10">
+          <svg width="120" height="120" viewBox="0 0 100 100" fill="none">
+            <circle cx="50" cy="50" r="45" stroke="white" strokeWidth="1.5" fill="none"/>
+            <path d="M15 55 Q30 42 45 55 Q60 68 75 55 Q85 47 90 55" stroke="white" strokeWidth="2" fill="none"/>
+            <path d="M10 65 Q25 55 40 65 Q55 75 70 65 Q80 58 85 65" stroke="white" strokeWidth="1.5" fill="none"/>
+          </svg>
+        </div>
         <div className="relative flex flex-wrap items-end justify-between gap-6">
           <div>
-            <p className="text-xs font-bold tracking-[0.18em] text-indigo-200 uppercase">
+            <p className="text-xs font-bold tracking-[0.18em] text-amber-300 uppercase">
               {config.empresa} · painel de vouchers
             </p>
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
@@ -151,14 +158,14 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
                 ? `${d.doDia.length} passeio${d.doDia.length > 1 ? "s" : ""} hoje · ${d.pessoasHoje} pessoas`
                 : "Nenhum passeio marcado para hoje"}
             </h1>
-            <p className="mt-1.5 text-sm text-indigo-100">
+            <p className="mt-1.5 text-sm text-sky-100">
               {d.pendentes} voucher(s) pendente(s) · {brl(d.aReceberTotal)} a receber
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => ir("vouchers")}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-amber-600/30 transition hover:bg-amber-400"
             >
               <Icon name="plus" className="size-4" /> Criar voucher
             </button>
@@ -178,14 +185,14 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
           rotulo="Vouchers no mês"
           valor={String(d.totalMes)}
           detalhe={`${vouchers.length} no total`}
-          cor="bg-indigo-50 text-indigo-600"
+          cor="bg-sky-50 text-sky-600"
         />
         <Kpi
           icone="users"
           rotulo="Pessoas hoje"
           valor={String(d.pessoasHoje)}
           detalhe={`em ${d.doDia.length} passeio(s)`}
-          cor="bg-violet-50 text-violet-600"
+          cor="bg-amber-50 text-amber-600"
         />
         <Kpi
           icone="money"
@@ -247,7 +254,7 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
                   <div
                     className={cn(
                       "w-full rounded-t-md transition-all",
-                      s.hoje ? "bg-indigo-600" : "bg-indigo-300",
+                      s.hoje ? "bg-sky-600" : "bg-sky-300",
                     )}
                     style={{ height: `${Math.max(4, (s.pessoas / d.maxSerie) * 100)}%` }}
                     title={`${s.pessoas} pessoas`}
@@ -256,7 +263,7 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
                 <span
                   className={cn(
                     "text-[11px] font-bold",
-                    s.hoje ? "text-indigo-600" : "text-slate-400",
+                    s.hoje ? "text-sky-600" : "text-slate-400",
                   )}
                 >
                   {s.rotulo}
@@ -272,7 +279,7 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
           <h2 className="font-bold text-slate-900">Próximos passeios</h2>
           <button
             onClick={() => ir("vouchers")}
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
+            className="text-xs font-bold text-sky-600 hover:text-sky-800"
           >
             Ver vouchers
           </button>

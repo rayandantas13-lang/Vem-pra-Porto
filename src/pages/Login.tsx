@@ -3,6 +3,7 @@ import type { Sessao } from "@/types";
 import { api, modoLocal } from "@/api";
 import { Icon } from "@/components/Icon";
 import { Aviso, Botao, Campo, Entrada } from "@/components/ui";
+import { LogoIcon } from "@/components/Logo";
 
 const vazio = {
   nome: "",
@@ -77,21 +78,21 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
   };
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 p-4">
-      <div className="absolute -top-40 -left-32 size-[28rem] rounded-full bg-indigo-500/15 blur-3xl" />
-      <div className="absolute -right-32 -bottom-40 size-[28rem] rounded-full bg-violet-500/15 blur-3xl" />
+      <div className="absolute -top-40 -left-32 size-[28rem] rounded-full bg-sky-500/20 blur-3xl" />
+      <div className="absolute -right-32 -bottom-40 size-[28rem] rounded-full bg-amber-400/15 blur-3xl" />
 
       <div className="anim-up relative w-full max-w-md">
         <div className="mb-7 text-center">
-          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-xl shadow-indigo-600/25">
-            <Icon name="sparkles" className="size-8" fill />
+          <div className="mx-auto shadow-xl shadow-sky-700/25 rounded-2xl overflow-hidden">
+            <LogoIcon size={72} />
           </div>
-          <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-900">Gestor Pro</h1>
+          <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-900">Vem Pra Porto</h1>
           <p className="mt-1 text-sm text-slate-500">Painel administrativo</p>
         </div>
 
         <div className="rounded-3xl bg-white p-6 shadow-xl shadow-slate-300/40 ring-1 ring-slate-200">
           <div className="mb-5 flex items-center gap-2">
-            <Icon name={criando ? "user" : "lock"} className="size-4 text-indigo-600" />
+            <Icon name={criando ? "user" : "lock"} className="size-4 text-sky-600" />
             <h2 className="font-bold text-slate-900">
               {criando ? "Criar administrador" : "Entrar no sistema"}
             </h2>
@@ -224,7 +225,7 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
                     setCriando(true);
                     setErro("");
                   }}
-                  className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-700"
+                  className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-sky-700"
                 >
                   <Icon name="plus" className="size-3.5" /> Primeiro acesso: criar administrador
                 </button>
