@@ -196,7 +196,9 @@ class PDFVoucherBuilder {
       this.texto(t, this.M + 4, this.y + 13 + i * 7, 13, "bold", CORES.primaria);
     });
 
-    this.y += altBox + 2.5;
+    this.y += altBox + 4;
+    this.linha(this.M, this.y, this.W, [226, 232, 240]);
+    this.y += 4;
   }
 
   // 3. DADOS DA RESERVA (2 colunas)

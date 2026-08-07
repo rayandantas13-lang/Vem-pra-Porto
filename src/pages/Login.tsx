@@ -83,7 +83,7 @@ export default function Login({ aoEntrar }: { aoEntrar: (s: Sessao) => void }) {
 
       <div className="anim-up relative w-full max-w-md">
         <div className="mb-7 text-center">
-          <div className="mx-auto shadow-xl shadow-sky-700/25 rounded-2xl overflow-hidden">
+          <div className="flex justify-center">
             <LogoIcon size={72} />
           </div>
           <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-900">Vem Pra Porto</h1>
