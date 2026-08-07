@@ -7,6 +7,8 @@ import {
   dataBR,
   datasPasseios,
   linkAbrirWhatsApp,
+  mascaraCnpj,
+  mascaraTelefone,
   mensagemVoucher,
   nomesClientes,
   nomesPasseios,
@@ -154,10 +156,32 @@ class PDFVoucherBuilder {
     // Nome da empresa
     this.texto(config.empresa, this.M + 34, 15, 18, "bold", CORES.branco);
 
-    // Instagram da empresa abaixo do nome
-    if (config.instagram) {
-      this.texto(config.instagram, this.M + 34, 24, 9, "normal", [253, 230, 138]);
-    }
+    // Dados de contato/identificação da empresa abaixo do nome: Instagram
+    // (dourado) e, se preenchidos nas Configurações, CNPJ e telefone (azul
+    // claro). Números sem pontuação são formatados para exibição.
+    const digitosCnpj = (config.cnpj || "").replace(/\D/g, "");
+    const cnpj = digitosCnpj.length === 14 ? mascaraCnpj(digitosCnpj) : (config.cnpj || "").trim();
+    const digitosTel = (config.telefone || "").replace(/\D/g, "");
+    const tel =
+      digitosTel.length >= 10 && digitosTel.length <= 11
+        ? mascaraTelefone(digitosTel)
+        : (config.telefone || "").trim();
+    const contatos = [
+      (config.instagram || "").trim(),
+      cnpj ? `CNPJ: ${cnpj}` : "",
+      tel ? `Tel: ${tel}` : "",
+    ].filter(Boolean);
+
+    contatos.slice(0, 3).forEach((linha, i) => {
+      this.texto(
+        linha,
+        this.M + 34,
+        24 + i * 7,
+        9,
+        "normal",
+        i === 0 && (config.instagram || "").trim() ? [253, 230, 138] : [224, 242, 254]
+      );
+    });
 
     // Voucher à direita
     this.texto("VOUCHER", this.L - this.M, 9.5, 8, "bold", [253, 230, 138], "right");

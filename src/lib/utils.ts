@@ -99,6 +99,16 @@ export const mascaraTelefone = (v: string) => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
+/** Máscara de CNPJ: 00.000.000/0001-00 */
+export const mascaraCnpj = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+};
+
 /* ---------------- WhatsApp ---------------- */
 
 /** Saudação conforme o horário do dia: 5h–11h "Bom dia", 12h–17h "Boa tarde", senão "Boa noite". */
