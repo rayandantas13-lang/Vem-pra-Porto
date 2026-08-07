@@ -94,6 +94,7 @@ export interface GastoOperacional {
   valor: number;
   data: string;
   observacao?: string;
+  voucherId?: ID;
   criadoEm: string;
 }
 
