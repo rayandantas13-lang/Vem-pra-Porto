@@ -25,7 +25,10 @@ export function LogoMarca({
       <img
         src={logoDataUrl}
         alt="Vem Pra Porto — Porto Seguro, BA"
-        className="h-16 w-16 shrink-0 rounded-xl object-contain"
+        width={size}
+        height={size}
+        className="shrink-0 rounded-xl object-contain"
+        style={{ width: size, height: size }}
       />
       {showText && (
         <div className="min-w-0">
