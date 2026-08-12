@@ -26,9 +26,16 @@ var SEGURANCA = {
   // que o esperado pelo site, o painel avisa que a implantação está velha.
   // v4: desconto (tipoDesconto/desconto) gravado na planilha + migração
   //     automática de abas criadas com layout antigo.
-  versao: '5',
+  // v6: sessão persistente de 10 dias (era 8 horas), com renovação automática
+  //     pela metade do prazo.
+  // v7: a ação "eu" passa a devolver { usuario, expiraEm } para o painel
+  //     conseguir renovar a sessão sem novo login.
+  // v8: remoção da biometria — login somente com usuário e senha.
+  versao: '8',
   tamanhoMaximoRequisicao: 300000,
-  horasSessao: 8,
+  // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
+  // painel é aberto a partir da metade do prazo (5 dias).
+  horasSessao: 10 * 24,
   maxTentativasLogin: 5,
   bloqueioLoginSegundos: 15 * 60,
   maxRegistrosAuditoria: 5000
@@ -120,8 +127,23 @@ function processar(req) {
     var auth = exigirSessao(req.token);
 
     switch (acao) {
-      case 'eu':
-        return ok(publico(auth.usuario));
+      case 'eu': {
+        // Abre o painel perto do fim da validade (além da metade) estica a
+        // sessão por mais 10 dias, sem precisar digitar a senha de novo.
+        var sessaoAtual = auth.sessao;
+        var expiraEm = sessaoAtual.expiraEm;
+        var agoraMs = Date.now();
+        var totalMs = SEGURANCA.horasSessao * 60 * 60 * 1000;
+        var metadeMs = totalMs / 2;
+        var criadaEm = sessaoAtual.criadoEm ? new Date(sessaoAtual.criadoEm).getTime() : agoraMs - totalMs;
+        if (agoraMs - criadaEm >= metadeMs) {
+          var novaExpira = new Date(agoraMs + totalMs).toISOString();
+          sessaoAtual.expiraEm = novaExpira;
+          gravar('Sessoes', sessaoAtual);
+          expiraEm = novaExpira;
+        }
+        return ok({ usuario: publico(auth.usuario), expiraEm: expiraEm });
+      }
 
       case 'sair':
         auditar(auth.usuario, 'SAIR', 'Sessao', auth.sessao.id, 'Sessão encerrada');

@@ -50,6 +50,8 @@ Também há **pré-visualizar** (mostra o PDF anexado e a mensagem como o client
 
 Não existe mais usuário ou senha padrão. No primeiro acesso, crie o administrador com uma senha de pelo menos 10 caracteres.
 
+O login é feito apenas com **usuário e senha**. Não há biometria/Face ID: depois de entrar, você permanece conectado por 10 dias neste navegador (ver a seção Segurança).
+
 Sem conectar o Google Sheets, o sistema abre em **modo local** com vouchers fictícios de exemplo. Esse modo serve para demonstração; dados reais devem ser armazenados no Google Sheets.
 
 ## Conectar o Google Sheets
@@ -151,7 +153,9 @@ O menu fica oculto para operadores e o Apps Script bloqueia a chamada no servido
 - Todo o tráfego usa HTTPS e o Google também protege os arquivos armazenados na infraestrutura dele
 - No modo conectado, senhas nunca são gravadas em texto: ficam como HMAC SHA-256 com salt e um segredo exclusivo guardado nas propriedades privadas do Apps Script
 - Tokens de sessão nunca são gravados em formato utilizável na planilha; somente o HMAC do token é armazenado
-- A sessão expira no servidor em 8 horas, fica apenas na aba atual e é encerrada após 30 minutos sem atividade
+- A sessão dura **10 dias** no servidor e é **renovada automaticamente** quando você abre o painel a partir da metade do prazo (5 dias) — não é preciso digitar a senha de novo
+- A sessão fica salva neste navegador (`localStorage`), então continuar conectado ao fechar a aba, reiniciar o celular/computador ou trocar de aba. Não há mais desconexão por inatividade
+- Se a chamada de validação falhar por rede ou instabilidade do Apps Script, você **não** é deslogado; o login só cai quando o servidor informa que a sessão expirou (após os 10 dias) ou que o usuário está inativo
 - Cinco tentativas incorretas bloqueiam temporariamente novas tentativas para o mesmo usuário
 - A criação do primeiro administrador exige uma chave de instalação aleatória e de uso único
 - Toda entrada é validada no servidor e textos são neutralizados para impedir injeção de fórmulas na planilha

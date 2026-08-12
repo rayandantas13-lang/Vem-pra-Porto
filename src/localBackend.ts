@@ -21,7 +21,7 @@ interface BancoLocal {
   vouchers: Voucher[];
   gastos: GastoOperacional[];
   config: Config;
-  sessoes: { token: string; usuarioId: string; expiraEm: string }[];
+  sessoes: { token: string; usuarioId: string; expiraEm: string; criadoEm?: string }[];
 }
 
 function hash(senha: string) {
@@ -112,11 +112,17 @@ function exigirAdmin(u: UsuarioLocal) {
   if (u.papel !== "admin") throw new Error("Acesso permitido somente para administradores.");
 }
 
+/** A sessão vive 10 dias e é renovada automaticamente a partir da metade. */
+const DURACAO_SESSAO_MS = 10 * 24 * 60 * 60 * 1000;
+const METADE_SESSAO_MS = DURACAO_SESSAO_MS / 2;
+
 function novaSessao(db: BancoLocal, u: UsuarioLocal): Sessao {
   const token = `local-${uid()}-${uid()}`;
-  const expiraEm = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-  db.sessoes = db.sessoes.filter((s) => new Date(s.expiraEm).getTime() > Date.now());
-  db.sessoes.push({ token, usuarioId: u.id, expiraEm });
+  const agora = Date.now();
+  const criadoEm = new Date(agora).toISOString();
+  const expiraEm = new Date(agora + DURACAO_SESSAO_MS).toISOString();
+  db.sessoes = db.sessoes.filter((s) => new Date(s.expiraEm).getTime() > agora);
+  db.sessoes.push({ token, usuarioId: u.id, expiraEm, criadoEm });
   return { token, usuario: publico(u), expiraEm };
 }
 
@@ -177,9 +183,25 @@ export async function requisicaoLocal<T>(payload: Record<string, unknown>): Prom
       break;
     }
 
-    case "eu":
-      saida = publico(autenticar(db, payload.token));
+    case "eu": {
+      const u = autenticar(db, payload.token);
+      const token = String(payload.token);
+      const s = db.sessoes.find((x) => x.token === token);
+      // Renova automaticamente quando o painel é aberto além da metade do
+      // prazo (5 dias), esticando por mais 10 dias sem novo login.
+      if (s) {
+        const agora = Date.now();
+        const criada = s.criadoEm ? new Date(s.criadoEm).getTime() : agora - DURACAO_SESSAO_MS;
+        if (agora - criada >= METADE_SESSAO_MS) {
+          s.criadoEm = new Date(agora).toISOString();
+          s.expiraEm = new Date(agora + DURACAO_SESSAO_MS).toISOString();
+        }
+        saida = { usuario: publico(u), expiraEm: s.expiraEm };
+      } else {
+        saida = { usuario: publico(u) };
+      }
       break;
+    }
 
     case "sair":
       db.sessoes = db.sessoes.filter((s) => s.token !== String(payload.token));
