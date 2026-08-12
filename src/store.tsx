@@ -13,34 +13,63 @@ import { CONFIG_PADRAO } from "@/data/seed";
 import { normalizarStatus, uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
-const TEMPO_OCIOSO_MS = 30 * 60 * 1000;
 
 /**
- * A sessão fica somente na aba atual. Não usamos localStorage para que um token
- * de acesso não continue gravado no computador depois que o navegador fechar.
+ * A sessão é persistida em localStorage para continuar conectado entre abas e
+ * reinícios do navegador/celular por até 10 dias. Versões antigas gravavam
+ * apenas em sessionStorage (que some ao fechar a aba); migramos esse valor uma
+ * única vez para manter quem já estava logado.
  */
 function lerSessao(): Sessao | null {
   try {
-    // Descarta sessões persistentes criadas por versões antigas.
-    localStorage.removeItem(SESSAO_KEY);
-    const raw = sessionStorage.getItem(SESSAO_KEY);
+    let raw = localStorage.getItem(SESSAO_KEY);
+    if (!raw) {
+      raw = sessionStorage.getItem(SESSAO_KEY);
+      if (raw) {
+        localStorage.setItem(SESSAO_KEY, raw);
+        sessionStorage.removeItem(SESSAO_KEY);
+      }
+    }
     if (!raw) return null;
     const sessao = JSON.parse(raw) as Sessao;
-    if (!sessao.token || !sessao.usuario || !sessao.usuario.papel || new Date(sessao.expiraEm).getTime() <= Date.now()) {
-      sessionStorage.removeItem(SESSAO_KEY);
+    if (
+      !sessao.token ||
+      !sessao.usuario ||
+      !sessao.usuario.papel ||
+      new Date(sessao.expiraEm).getTime() <= Date.now()
+    ) {
+      localStorage.removeItem(SESSAO_KEY);
       return null;
     }
     return sessao;
   } catch {
-    sessionStorage.removeItem(SESSAO_KEY);
+    localStorage.removeItem(SESSAO_KEY);
     return null;
   }
 }
 
 function gravarSessao(s: Sessao | null) {
-  localStorage.removeItem(SESSAO_KEY);
-  if (s) sessionStorage.setItem(SESSAO_KEY, JSON.stringify(s));
-  else sessionStorage.removeItem(SESSAO_KEY);
+  if (s) localStorage.setItem(SESSAO_KEY, JSON.stringify(s));
+  else localStorage.removeItem(SESSAO_KEY);
+  // Limpa resquícios de versões antigas que usavam sessionStorage.
+  sessionStorage.removeItem(SESSAO_KEY);
+}
+
+/**
+ * Mensagens que o servidor devolve quando o token NÃO é mais aceito. Só nesses
+ * casos deslogamos o usuário — um erro de rede ou do Apps Script instável
+ * mantém a sessão para não derrubar o painel à toa.
+ */
+function ehErroDeSessao(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("sessão expirada") ||
+    m.includes("sessao expirada") ||
+    m.includes("sessão") && m.includes("expir") ||
+    m.includes("usuário inativo") ||
+    m.includes("usuario inativo") ||
+    m.includes("token") && m.includes("inválid")
+  );
 }
 
 export interface Toast {
@@ -107,14 +136,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     api
       .eu(guardada.token)
-      .then((usuario) => {
-        const nova = { ...guardada, usuario };
+      .then(({ usuario, expiraEm }) => {
+        // O servidor renova a validade automaticamente a partir da metade do
+        // prazo. Quando devolve a nova data, atualizamos para estender os 10
+        // dias. Se for uma implantação antiga (sem expiraEm), mantemos a atual.
+        const nova = {
+          ...guardada,
+          usuario,
+          expiraEm: expiraEm ?? guardada.expiraEm,
+        };
         setSessao(nova);
         gravarSessao(nova);
       })
-      .catch(() => {
-        gravarSessao(null);
-        setSessao(null);
+      .catch((err) => {
+        // Só desloga quando o servidor realmente rejeita a sessão. Um erro de
+        // rede ou do Apps Script instável mantém o usuário conectado usando a
+        // última sessão válida salva.
+        const msg = err instanceof Error ? err.message : "";
+        if (msg && ehErroDeSessao(msg)) {
+          gravarSessao(null);
+          setSessao(null);
+        } else {
+          setSessao(guardada);
+          gravarSessao(guardada);
+        }
       })
       .finally(() => setVerificando(false));
   }, []);
@@ -122,33 +167,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!sessao) return;
 
-    let ultimaAtividade = Date.now();
-    const registrarAtividade = () => {
-      ultimaAtividade = Date.now();
-    };
-    const eventos: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "touchstart", "scroll"];
-    eventos.forEach((evento) => window.addEventListener(evento, registrarAtividade, { passive: true }));
-
+    // Não encerramos mais por inatividade. A sessão só cai quando o servidor
+    // diz que expirou (após 10 dias, renováveis pela metade do prazo). Aqui
+    // apenas observamos a data local para cair sozinha quando o prazo total
+    // vencer sem nenhuma renovação.
     const relogio = window.setInterval(() => {
-      const expirou = new Date(sessao.expiraEm).getTime() <= Date.now();
-      const ociosa = Date.now() - ultimaAtividade >= TEMPO_OCIOSO_MS;
-      if (!expirou && !ociosa) return;
-
+      if (new Date(sessao.expiraEm).getTime() > Date.now()) return;
       void api.sair(sessao.token).catch(() => {});
       gravarSessao(null);
       setSessao(null);
       setVouchers([]);
       setConfig(CONFIG_PADRAO);
-      notificar(
-        expirou ? "Sua sessão expirou. Entre novamente." : "Sessão encerrada por inatividade.",
-        "info",
-      );
-    }, 30_000);
+      notificar("Sua sessão expirou. Entre novamente.", "info");
+    }, 60_000);
 
-    return () => {
-      window.clearInterval(relogio);
-      eventos.forEach((evento) => window.removeEventListener(evento, registrarAtividade));
-    };
+    return () => window.clearInterval(relogio);
   }, [sessao, notificar]);
 
   useEffect(() => {

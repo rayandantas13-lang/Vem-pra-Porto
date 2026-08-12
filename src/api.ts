@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 5;
+export const VERSAO_ESPERADA = 8;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -35,11 +35,11 @@ export function versaoDesatualizada(versao: unknown) {
 }
 
 export const AVISO_IMPLANTACAO_ANTIGA =
-  "O Apps Script publicado está desatualizado: o desconto (e os campos “O que " +
-  "levar”, “Informações adicionais” e a data/hora de volta) não é gravado na " +
-  "planilha — por isso ele some depois de atualizar a página. Abra o Apps " +
-  "Script, cole o Code.gs mais recente e use Implantar → Gerenciar implantações " +
-  "→ ✏️ → Versão: Nova versão.";
+  "O Apps Script publicado está desatualizado. A versão nova mantém você " +
+  "conectado por 10 dias (com renovação automática) e grava corretamente o " +
+  "desconto e os campos “O que levar”, “Informações adicionais” e a data/hora " +
+  "de volta. Abra o Apps Script, cole o Code.gs mais recente e use Implantar " +
+  "→ Gerenciar implantações → ✏️ → Versão: Nova versão.";
 
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
 const ACOES_REPETIVEIS = new Set([
@@ -49,6 +49,8 @@ const ACOES_REPETIVEIS = new Set([
   "listarUsuarios",
   "salvarVoucher",
   "removerVoucher",
+  "salvarGasto",
+  "removerGasto",
   "salvarConfig",
   "alternarUsuario",
 ]);
@@ -378,6 +380,22 @@ export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]
   return passos;
 }
 
+/**
+ * Resposta da ação "eu". O Apps Script novo (v8) devolve { usuario, expiraEm }
+ * para que o painel consiga renovar a validade da sessão. Implantações
+ * antigas continuam devolvendo o usuário direto, e os dois formatos são
+ * aceitos aqui.
+ */
+export interface RespostaEu {
+  usuario: Usuario;
+  expiraEm?: string;
+}
+
+function normalizarEu(r: Usuario | RespostaEu): RespostaEu {
+  if (r && typeof r === "object" && "usuario" in r && r.usuario) return r as RespostaEu;
+  return { usuario: r as Usuario };
+}
+
 export const api = {
   status: () => req<{ temAdmin: boolean; versao?: string }>({ acao: "status" }),
   entrar: (usuario: string, senha: string) => req<Sessao>({ acao: "entrar", usuario, senha }),
@@ -388,7 +406,15 @@ export const api = {
     senha: string;
     chaveInstalacao?: string;
   }) => req<Sessao>({ acao: "criarPrimeiroAdmin", ...p }),
-  eu: (token: string) => req<Usuario>({ acao: "eu", token }),
+  /**
+   * Valida o token e, quando a sessão já passou da metade do prazo, devolve a
+   * nova data de expiração (renovação automática de 10 dias). Aceita tanto a
+   * resposta nova quanto a de implantações antigas do Apps Script.
+   */
+  eu: async (token: string): Promise<RespostaEu> => {
+    const r = await req<Usuario | RespostaEu>({ acao: "eu", token });
+    return normalizarEu(r);
+  },
   sair: (token: string) => req<void>({ acao: "sair", token }),
 
   dados: (token: string) => req<DadosApi>({ acao: "dados", token }),
