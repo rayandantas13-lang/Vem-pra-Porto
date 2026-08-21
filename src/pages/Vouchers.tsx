@@ -327,24 +327,29 @@ export default function Vouchers() {
               </Selecao>
             </Campo>
 
-            {/* Filtro 3 — período personalizado (calendário: de tal dia até tal dia) */}
+            {/* Filtro 3 — período personalizado (calendário: de tal dia até tal dia). 
+                No celular os dois campos dividem a largura do card em partes iguais
+                (flex-1 + min-w-0), sem estourar a tela; a partir de sm voltam a
+                ter a largura fixa de 10rem. */}
             <div className="flex flex-wrap items-end gap-2">
-              <Campo rotulo="Período personalizado">
+              <Campo rotulo="Período personalizado" className="w-full sm:w-auto">
                 <div className="flex items-center gap-2">
                   <Entrada
                     type="date"
                     value={periodo.de}
                     onChange={(e) => mudarDe(e.target.value)}
                     aria-label="Data inicial do período"
-                    className="w-40"
+                    className="min-w-0 flex-1 max-sm:px-2.5 sm:w-40 sm:flex-none"
                   />
-                  <span className="pb-2.5 text-sm font-bold text-slate-400">até</span>
+                  <span className="shrink-0 self-center text-sm font-bold text-slate-400">
+                    até
+                  </span>
                   <Entrada
                     type="date"
                     value={periodo.ate}
                     onChange={(e) => mudarAte(e.target.value)}
                     aria-label="Data final do período"
-                    className="w-40"
+                    className="min-w-0 flex-1 max-sm:px-2.5 sm:w-40 sm:flex-none"
                   />
                 </div>
               </Campo>
