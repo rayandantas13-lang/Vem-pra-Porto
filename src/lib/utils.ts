@@ -145,6 +145,20 @@ export function mensagemVoucher(v: Voucher, config: Config) {
 export const linkAbrirWhatsApp = (texto = "") =>
   `https://wa.me/${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
 
+/**
+ * Monta o link direto para o WhatsApp de um cliente.
+ * Os telefones cadastrados no app são brasileiros e normalmente não incluem
+ * o código do país, então acrescentamos o 55 quando recebemos DDD + número.
+ * Mantém números que já vierem com código do país e não cria links para
+ * cadastros incompletos.
+ */
+export const linkWhatsAppTelefone = (telefone: string, texto = "") => {
+  const digitos = (telefone || "").replace(/\D/g, "");
+  if (digitos.length < 10) return "";
+  const numero = digitos.length === 10 || digitos.length === 11 ? `55${digitos}` : digitos;
+  return `https://wa.me/${numero}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
+};
+
 export const iniciais = (nome: string) =>
   (nome || "?")
     .trim()

@@ -7,6 +7,7 @@ import {
   dataBR,
   datasPasseios,
   linkAbrirWhatsApp,
+  linkWhatsAppTelefone,
   mascaraCnpj,
   mascaraTelefone,
   mensagemVoucher,
@@ -230,17 +231,40 @@ class PDFVoucherBuilder {
     const pessoas = totalPessoas(voucher);
     const colWidth = (this.W - 6) / 2;
 
-    const desenhaCampo = (rot: string, val: string, x: number, yy: number, larg: number) => {
+    const desenhaCampo = (
+      rot: string,
+      val: string,
+      x: number,
+      yy: number,
+      larg: number,
+      link = "",
+      textoClicavel = val,
+    ) => {
       this.texto(rot.toUpperCase(), x, yy, 7, "bold", CORES.cinza);
       this.doc.setFont("helvetica", "bold");
       this.doc.setFontSize(10.5);
-      const lines = this.doc.splitTextToSize(val, larg - 2) as string[];
+      const lines = (this.doc.splitTextToSize(val, larg - 2) as string[]).slice(0, 3);
       this.texto(lines[0] || "—", x, yy + 6, 10.5, "bold", CORES.escuro);
       let extra = 0;
-      lines.slice(1, 3).forEach((t, i) => {
+      lines.slice(1).forEach((t, i) => {
         this.texto(t, x, yy + 11 + i * 5, 10.5, "bold", CORES.escuro);
         extra += 5;
       });
+
+      // A anotação é invisível: o número mantém exatamente o mesmo visual,
+      // mas passa a abrir a conversa direta com o cliente no WhatsApp.
+      if (link) {
+        this.doc.setFont("helvetica", "bold");
+        this.doc.setFontSize(10.5);
+        const linhasClicaveis = (
+          this.doc.splitTextToSize(textoClicavel, larg - 2) as string[]
+        ).slice(0, 3);
+        linhasClicaveis.forEach((linha, i) => {
+          const larguraTexto = Math.min(this.doc.getTextWidth(linha), larg - 2);
+          this.doc.link(x, yy + 2.2 + i * 5, larguraTexto, 5, { url: link });
+        });
+      }
+
       return 9.5 + extra;
     };
 
@@ -254,7 +278,15 @@ class PDFVoucherBuilder {
     // Linha 2: Hotel + Telefone lado a lado
     this.checkPageBreak(15);
     const altH = desenhaCampo("Hotel", voucher.hotel || "—", this.M, this.y, colWidth);
-    const altT = desenhaCampo("Telefone", [voucher.telefone, voucher.contatoExtra].filter(Boolean).join(" · ") || "—", this.M + colWidth + 6, this.y, colWidth);
+    const altT = desenhaCampo(
+      "Telefone",
+      [voucher.telefone, voucher.contatoExtra].filter(Boolean).join(" · ") || "—",
+      this.M + colWidth + 6,
+      this.y,
+      colWidth,
+      linkWhatsAppTelefone(voucher.telefone),
+      voucher.telefone,
+    );
     this.y += Math.max(altH, altT) + 1;
     this.linha(this.M, this.y - 1, this.W, [226, 232, 240]);
     this.y += 3;
