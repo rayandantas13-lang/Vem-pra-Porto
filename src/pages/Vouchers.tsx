@@ -24,6 +24,7 @@ import {
   gerarCodigo,
   gerarHorarios,
   hoje,
+  linkWhatsAppTelefone,
   mascaraTelefone,
   mensagemVoucher,
   nomesClientes,
@@ -285,6 +286,7 @@ export default function Vouchers() {
         <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {lista.map((v) => {
             const data = primeiraData(v);
+            const linkTelefone = linkWhatsAppTelefone(v.telefone);
             return (
               <div
                 key={v.id}
@@ -361,7 +363,20 @@ export default function Vouchers() {
                     {v.telefone && (
                       <p className="flex items-center gap-2 text-xs text-slate-500">
                         <Icon name="phone" className="size-3.5 shrink-0" />
-                        {v.telefone}
+                        {linkTelefone ? (
+                          <a
+                            href={linkTelefone}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`Abrir conversa com ${nomesClientes(v)} no WhatsApp`}
+                            aria-label={`Abrir o WhatsApp de ${nomesClientes(v)}: ${v.telefone}`}
+                            className="rounded-sm transition-colors hover:text-emerald-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                          >
+                            {v.telefone}
+                          </a>
+                        ) : (
+                          v.telefone
+                        )}
                       </p>
                     )}
                   </div>
