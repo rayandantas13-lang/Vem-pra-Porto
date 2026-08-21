@@ -11,6 +11,7 @@ import {
   Campo,
   Cartao,
   Entrada,
+  EntradaNumero,
   Modal,
   Selecao,
   Selo,
@@ -630,11 +631,10 @@ export default function Vouchers() {
                 </Selecao>
               </Campo>
               <Campo rotulo="Nº de pessoas" dica="total do grupo">
-                <Entrada
-                  type="number"
+                <EntradaNumero
                   min={1}
-                  value={form.pessoas}
-                  onChange={(e) => set({ pessoas: Number(e.target.value) })}
+                  valor={form.pessoas}
+                  aoMudar={(n) => set({ pessoas: n })}
                 />
               </Campo>
             </div>
@@ -796,12 +796,11 @@ export default function Vouchers() {
             {/* Pagamento */}
             <div className="grid gap-4 sm:grid-cols-2">
               <Campo rotulo="Valor total (R$)">
-                <Entrada
-                  type="number"
+                <EntradaNumero
                   min={0}
                   step="0.01"
-                  value={form.total}
-                  onChange={(e) => set({ total: Number(e.target.value) })}
+                  valor={form.total}
+                  aoMudar={(n) => set({ total: n })}
                 />
               </Campo>
               <Campo
@@ -822,23 +821,20 @@ export default function Vouchers() {
                     <option value="percentual">%</option>
                     <option value="fixo">R$</option>
                   </Selecao>
-                  <Entrada
-                    type="number"
+                  <EntradaNumero
                     min={0}
                     step="0.01"
-                    value={form.desconto}
-                    onChange={(e) => set({ desconto: Number(e.target.value) })}
-                    placeholder="0"
+                    valor={form.desconto ?? 0}
+                    aoMudar={(n) => set({ desconto: n })}
                   />
                 </div>
               </Campo>
               <Campo rotulo="Valor da entrada (R$)">
-                <Entrada
-                  type="number"
+                <EntradaNumero
                   min={0}
                   step="0.01"
-                  value={form.entrada}
-                  onChange={(e) => set({ entrada: Number(e.target.value) })}
+                  valor={form.entrada}
+                  aoMudar={(n) => set({ entrada: n })}
                 />
               </Campo>
               <Campo rotulo="A receber">

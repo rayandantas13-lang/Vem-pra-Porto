@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/utils/cn";
 import { Icon, type IconName } from "@/components/Icon";
@@ -101,6 +101,60 @@ export function Campo({
 
 export function Entrada({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cn(BASE_CAMPO, className)} />;
+}
+
+/**
+ * Campo numérico que guarda o que está digitado como TEXTO (e não como
+ * number). É isso que resolve dois problemas clássicos do
+ * <input type="number"> controlado por número:
+ *
+ * 1) Celular: com value={0} o campo abre mostrando "0", o cursor fica DEPOIS
+ *    do zero e tudo que a pessoa digita sai junto — vira "0150" em vez de
+ *    "150". Aqui o zero vira campo vazio (placeholder "0"), então digitar
+ *    "150" dá exatamente "150".
+ *
+ * 2) Apagar/editar: controlando o número direto, apagar tudo fazia o "0"
+ *    voltar na hora e não dava para começar a digitar centavos ("0."). Com o
+ *    texto local, dá para esvaziar o campo e digitar com ponto normalmente.
+ *
+ * O efeito só reescreve o texto quando o número muda POR FORA do campo (ex.:
+ * escolher um serviço preenche o total do voucher) — enquanto a pessoa está
+ * digitando, o texto nunca é tocado.
+ */
+export function EntradaNumero({
+  valor,
+  aoMudar,
+  className,
+  placeholder = "0",
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> & {
+  valor: number;
+  aoMudar: (n: number) => void;
+}) {
+  const [texto, setTexto] = useState(valor ? String(valor) : "");
+
+  useEffect(() => {
+    if (Number(texto) !== valor) setTexto(valor ? String(valor) : "");
+    // `texto` entra de propósito: comparamos com o digitado, mas só reagimos a `valor`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
+
+  return (
+    <input
+      {...props}
+      type="number"
+      value={texto}
+      placeholder={placeholder}
+      onChange={(e) => {
+        const t = e.target.value;
+        setTexto(t);
+        if (t === "") return aoMudar(0);
+        const n = Number(t);
+        if (!Number.isNaN(n)) aoMudar(n);
+      }}
+      className={cn(BASE_CAMPO, className)}
+    />
+  );
 }
 
 export function Selecao({
