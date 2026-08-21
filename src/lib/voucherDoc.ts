@@ -238,31 +238,34 @@ class PDFVoucherBuilder {
       yy: number,
       larg: number,
       link = "",
-      textoClicavel = val,
     ) => {
       this.texto(rot.toUpperCase(), x, yy, 7, "bold", CORES.cinza);
       this.doc.setFont("helvetica", "bold");
       this.doc.setFontSize(10.5);
       const lines = (this.doc.splitTextToSize(val, larg - 2) as string[]).slice(0, 3);
-      this.texto(lines[0] || "—", x, yy + 6, 10.5, "bold", CORES.escuro);
+
+      // Campo clicável (telefone do cliente): o valor sai no azul da marca,
+      // com sublinhado, para sinalizar o toque.
+      const corValor = link ? CORES.primaria : CORES.escuro;
+      this.texto(lines[0] || "—", x, yy + 6, 10.5, "bold", corValor);
       let extra = 0;
       lines.slice(1).forEach((t, i) => {
-        this.texto(t, x, yy + 11 + i * 5, 10.5, "bold", CORES.escuro);
+        this.texto(t, x, yy + 11 + i * 5, 10.5, "bold", corValor);
         extra += 5;
       });
 
-      // A anotação é invisível: o número mantém exatamente o mesmo visual,
-      // mas passa a abrir a conversa direta com o cliente no WhatsApp.
       if (link) {
-        this.doc.setFont("helvetica", "bold");
-        this.doc.setFontSize(10.5);
-        const linhasClicaveis = (
-          this.doc.splitTextToSize(textoClicavel, larg - 2) as string[]
-        ).slice(0, 3);
-        linhasClicaveis.forEach((linha, i) => {
+        this.doc.setDrawColor(...CORES.primaria);
+        this.doc.setLineWidth(0.4);
+        lines.forEach((linha, i) => {
           const larguraTexto = Math.min(this.doc.getTextWidth(linha), larg - 2);
-          this.doc.link(x, yy + 2.2 + i * 5, larguraTexto, 5, { url: link });
+          this.doc.line(x, yy + 7.8 + i * 5, x + larguraTexto, yy + 7.8 + i * 5);
         });
+        // Uma única anotação cobrindo o bloco inteiro do valor (todas as
+        // linhas, com folga acima/abaixo e a largura toda do campo). A área
+        // anterior de 5 mm por linha era pequena demais para toque: no
+        // celular o dedo errava e o link não abria.
+        this.doc.link(x - 1, yy + 1.5, larg + 2, 8.5 + extra, { url: link });
       }
 
       return 9.5 + extra;
@@ -285,7 +288,6 @@ class PDFVoucherBuilder {
       this.y,
       colWidth,
       linkWhatsAppTelefone(voucher.telefone),
-      voucher.telefone,
     );
     this.y += Math.max(altH, altT) + 1;
     this.linha(this.M, this.y - 1, this.W, [226, 232, 240]);

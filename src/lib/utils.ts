@@ -159,6 +159,25 @@ export const linkWhatsAppTelefone = (telefone: string, texto = "") => {
   return `https://wa.me/${numero}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
 };
 
+/**
+ * Abre um link do WhatsApp da forma mais confiável em cada dispositivo.
+ * No celular navega na própria aba: links com target="_blank" são bloqueados
+ * em navegadores embutidos (WebView) e aí o toque "não faz nada". No
+ * computador mantém a abertura em nova aba para não tirar o usuário do app.
+ */
+export const abrirLinkWhatsApp = (url: string) => {
+  if (!url) return;
+  const dispositivoToque =
+    "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0 ||
+    window.matchMedia("(hover: none)").matches;
+  if (dispositivoToque) {
+    window.location.href = url;
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+};
+
 export const iniciais = (nome: string) =>
   (nome || "?")
     .trim()
