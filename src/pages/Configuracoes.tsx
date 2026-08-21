@@ -23,6 +23,7 @@ import {
   Campo,
   Cartao,
   Entrada,
+  EntradaNumero,
   Modal,
   Selecao,
   Selo,
@@ -414,14 +415,13 @@ export default function Configuracoes() {
                 />
                 <div className="flex items-center gap-1.5 text-sm font-bold text-slate-600">
                   R$
-                  <Entrada
-                    type="number"
+                  <EntradaNumero
                     step="0.01"
-                    value={s.preco}
-                    onChange={(e) =>
+                    valor={s.preco}
+                    aoMudar={(n) =>
                       set({
                         servicos: form.servicos.map((x) =>
-                          x.id === s.id ? { ...x, preco: Number(e.target.value) } : x,
+                          x.id === s.id ? { ...x, preco: n } : x,
                         ),
                       })
                     }
