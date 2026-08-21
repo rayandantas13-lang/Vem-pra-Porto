@@ -76,6 +76,8 @@ export default function Vouchers() {
   const { vouchers, config, salvarVoucher, removerVoucher, mudarStatus, notificar } = useStore();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todos" | StatusVoucher>("todos");
+  const [filtroPasseio, setFiltroPasseio] = useState("todos");
+  const [periodo, setPeriodo] = useState<{ de: string; ate: string }>({ de: "", ate: "" });
   const [form, setForm] = useState<Voucher | null>(null);
   const [erro, setErro] = useState("");
   const [excluir, setExcluir] = useState<Voucher | null>(null);
@@ -84,16 +86,28 @@ export default function Vouchers() {
 
   const lista = useMemo(() => {
     const q = normalizar(busca.trim());
+    const temPeriodo = Boolean(periodo.de || periodo.ate);
     return vouchers
       .filter((v) => {
         if (filtro !== "todos" && v.status !== filtro) return false;
+        if (filtroPasseio !== "todos" && !(v.passeios || []).some((p) => p.nome.trim() === filtroPasseio))
+          return false;
+        if (temPeriodo) {
+          const datas = (v.passeios || []).flatMap((p) =>
+            [p.data, p.dataVolta].filter((d): d is string => !!d),
+          );
+          const noPeriodo = datas.some(
+            (d) => (!periodo.de || d >= periodo.de) && (!periodo.ate || d <= periodo.ate),
+          );
+          if (!noPeriodo) return false;
+        }
         if (!q) return true;
         return normalizar(
           `${v.codigo} ${nomesClientes(v)} ${nomesPasseios(v)} ${v.hotel} ${v.telefone}`,
         ).includes(q);
       })
       .sort((a, b) => (primeiraData(b) || b.criadoEm).localeCompare(primeiraData(a) || a.criadoEm));
-  }, [vouchers, busca, filtro]);
+  }, [vouchers, busca, filtro, filtroPasseio, periodo]);
 
   const stats = useMemo(() => {
     const ativos = vouchers.filter((v) => v.status !== "cancelado");
@@ -106,6 +120,31 @@ export default function Vouchers() {
         .reduce((s, v) => s + aReceber(v), 0),
     };
   }, [vouchers]);
+
+  /** Nomes dos passeios presentes nos vouchers (para o filtro "por passeio"). */
+  const passeiosDisponiveis = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          vouchers.flatMap((v) => (v.passeios || []).map((p) => p.nome.trim()).filter(Boolean)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [vouchers],
+  );
+
+  const filtrosAtivos =
+    filtro !== "todos" || filtroPasseio !== "todos" || Boolean(periodo.de || periodo.ate);
+
+  /** Mantém o intervalo válido: "de" nunca fica depois de "até" (e vice-versa). */
+  const mudarDe = (de: string) =>
+    setPeriodo((p) => ({ de, ate: p.ate && de > p.ate ? de : p.ate }));
+  const mudarAte = (ate: string) =>
+    setPeriodo((p) => ({ de: p.de && p.de > ate ? ate : p.de, ate }));
+  const limparFiltros = () => {
+    setFiltro("todos");
+    setFiltroPasseio("todos");
+    setPeriodo({ de: "", ate: "" });
+  };
 
   /* ---------------- formulário ---------------- */
   const set = (p: Partial<Voucher>) => setForm((f) => (f ? { ...f, ...p } : f));
@@ -244,28 +283,86 @@ export default function Vouchers() {
       </div>
 
       <Cartao className="p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Busca
-            valor={busca}
-            aoMudar={setBusca}
-            placeholder="Buscar por cliente, código, passeio ou hotel..."
-            className="flex-1"
-          />
-          <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
-            {(["todos", ...STATUS_LISTA] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFiltro(f)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition",
-                  filtro === f
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800",
-                )}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Busca
+              valor={busca}
+              aoMudar={setBusca}
+              placeholder="Buscar por cliente, código, passeio ou hotel..."
+              className="flex-1"
+            />
+            {/* Filtro 1 — status (já existia) */}
+            <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+              {(["todos", ...STATUS_LISTA] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFiltro(f)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition",
+                    filtro === f
+                      ? "bg-white text-sky-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800",
+                  )}
+                >
+                  {f === "todos" ? "Todos" : STATUS_META[f].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-slate-100 pt-3 lg:flex-row lg:items-end">
+            {/* Filtro 2 — por passeio */}
+            <Campo rotulo="Filtrar por passeio" className="lg:w-72">
+              <Selecao
+                value={filtroPasseio}
+                onChange={(e) => setFiltroPasseio(e.target.value)}
+                aria-label="Filtrar por passeio"
               >
-                {f === "todos" ? "Todos" : STATUS_META[f].label}
-              </button>
-            ))}
+                <option value="todos">Todos os passeios</option>
+                {passeiosDisponiveis.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Selecao>
+            </Campo>
+
+            {/* Filtro 3 — período personalizado (calendário: de tal dia até tal dia) */}
+            <div className="flex flex-wrap items-end gap-2">
+              <Campo rotulo="Período personalizado">
+                <div className="flex items-center gap-2">
+                  <Entrada
+                    type="date"
+                    value={periodo.de}
+                    onChange={(e) => mudarDe(e.target.value)}
+                    aria-label="Data inicial do período"
+                    className="w-40"
+                  />
+                  <span className="pb-2.5 text-sm font-bold text-slate-400">até</span>
+                  <Entrada
+                    type="date"
+                    value={periodo.ate}
+                    onChange={(e) => mudarAte(e.target.value)}
+                    aria-label="Data final do período"
+                    className="w-40"
+                  />
+                </div>
+              </Campo>
+              {filtrosAtivos && (
+                <button
+                  onClick={limparFiltros}
+                  className="mb-0.5 inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-600 transition hover:bg-rose-100"
+                >
+                  <Icon name="close" className="size-3.5" /> Limpar filtros
+                </button>
+              )}
+            </div>
+
+            {filtrosAtivos && (
+              <p className="pb-1 text-xs font-semibold text-slate-500 lg:ml-auto lg:text-right">
+                {lista.length} resultado{lista.length !== 1 ? "s" : ""} com os filtros aplicados
+              </p>
+            )}
           </div>
         </div>
       </Cartao>
@@ -275,11 +372,21 @@ export default function Vouchers() {
           <Vazio
             icone="ticket"
             titulo="Nenhum voucher encontrado"
-            texto="Crie o primeiro voucher com os dados que você recebeu pelo WhatsApp."
+            texto={
+              filtrosAtivos
+                ? "Nenhum voucher bate com o status, passeio ou período escolhido. Limpe os filtros para ver todos."
+                : "Crie o primeiro voucher com os dados que você recebeu pelo WhatsApp."
+            }
             acao={
-              <Botao icone="plus" onClick={() => setForm(novoVoucher())}>
-                Criar voucher
-              </Botao>
+              filtrosAtivos ? (
+                <Botao variante="contorno" icone="close" onClick={limparFiltros}>
+                  Limpar filtros
+                </Botao>
+              ) : (
+                <Botao icone="plus" onClick={() => setForm(novoVoucher())}>
+                  Criar voucher
+                </Botao>
+              )
             }
           />
         </Cartao>
