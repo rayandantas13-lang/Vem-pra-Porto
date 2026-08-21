@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import {
   aReceber,
+  abrirLinkWhatsApp,
   brl,
   dataBR,
   datasPasseios,
@@ -371,6 +372,13 @@ export default function Vouchers() {
                             title={`Abrir conversa com ${nomesClientes(v)} no WhatsApp`}
                             aria-label={`Abrir o WhatsApp de ${nomesClientes(v)}: ${v.telefone}`}
                             className="rounded-sm transition-colors hover:text-emerald-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                            onClick={(e) => {
+                              // No celular, abre na própria aba: navegadores
+                              // embutidos bloqueiam a nova aba e o toque "não
+                              // faz nada". No PC continua abrindo em nova aba.
+                              e.preventDefault();
+                              abrirLinkWhatsApp(linkTelefone);
+                            }}
                           >
                             {v.telefone}
                           </a>
