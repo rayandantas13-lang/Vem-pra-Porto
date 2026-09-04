@@ -40,12 +40,14 @@ import {
   primeiraData,
   proximaData,
   rotuloRelativo,
+  servicoPorNome,
   STATUS_LISTA,
   STATUS_META,
   statusMeta,
   todasDatas,
   totalComDesconto,
   totalPessoas,
+  totalSugerido,
   uid,
   valorDesconto,
   type PeriodoVoucher,
@@ -135,6 +137,12 @@ export default function Vouchers() {
   const [filtroPasseio, setFiltroPasseio] = useState("todos");
   const [periodo, setPeriodo] = useState<{ de: string; ate: string }>({ de: "", ate: "" });
   const [form, setForm] = useState<Voucher | null>(null);
+  /**
+   * true quando a pessoa digitou o "Valor total" à mão. A partir daí o app
+   * para de recalcular o total ao mexer nos passeios/pessoas, para não
+   * apagar um valor negociado. O botão "Somar passeios" volta ao automático.
+   */
+  const [totalManual, setTotalManual] = useState(false);
   const [erro, setErro] = useState("");
   const [excluir, setExcluir] = useState<Voucher | null>(null);
   const [previa, setPrevia] = useState<Voucher | null>(null);
@@ -223,11 +231,32 @@ export default function Vouchers() {
   /* ---------------- formulário ---------------- */
   const set = (p: Partial<Voucher>) => setForm((f) => (f ? { ...f, ...p } : f));
 
+  /**
+   * Atualiza o formulário e, enquanto o total não foi digitado à mão,
+   * recalcula o "Valor total" como a SOMA de todos os passeios × pessoas.
+   * Antes o total era sobrescrito só com o preço do último passeio escolhido.
+   */
+  const atualizar = (p: Partial<Voucher>) =>
+    setForm((f) => {
+      if (!f) return f;
+      const novo = { ...f, ...p };
+      return totalManual ? novo : { ...novo, total: totalSugerido(novo, config.servicos) };
+    });
+
+  /** Abre o formulário (novo ou edição) já sabendo se o total é automático ou manual. */
+  const abrirForm = (v: Voucher) => {
+    setForm(v);
+    setErro("");
+    // Se o total salvo é exatamente a soma dos passeios, continua automático;
+    // se foi negociado/digitado (diferente da soma), fica como está.
+    setTotalManual(v.total !== totalSugerido(v, config.servicos));
+  };
+
   const setCliente = (i: number, valor: string) => {
     if (!form) return;
     const l = [...form.clientes];
     l[i] = valor;
-    set({ clientes: l, pessoas: Math.max(form.pessoas, l.filter((n) => n.trim()).length) });
+    atualizar({ clientes: l, pessoas: Math.max(form.pessoas, l.filter((n) => n.trim()).length) });
   };
 
   const addCliente = () => form && set({ clientes: [...form.clientes, ""] });
@@ -246,14 +275,20 @@ export default function Vouchers() {
 
   const escolherServico = (i: number, nome: string) => {
     if (!form) return;
-    const s = config.servicos.find((x) => x.nome === nome);
-    setPasseio(i, {
-      nome,
-      oQueLevar: s?.oQueLevar ?? form.passeios[i].oQueLevar,
-      local: s?.pontoRetorno ?? form.passeios[i].local,
-      informacoesAdicionais: s?.informacoesAdicionais ?? form.passeios[i].informacoesAdicionais,
-    });
-    if (s) set({ total: s.preco * (form.pessoas || 1) });
+    const s = servicoPorNome(config.servicos, nome);
+    const l = form.passeios.map((x, idx) =>
+      idx === i
+        ? {
+            ...x,
+            nome,
+            oQueLevar: s?.oQueLevar ?? x.oQueLevar,
+            local: s?.pontoRetorno ?? x.local,
+            informacoesAdicionais: s?.informacoesAdicionais ?? x.informacoesAdicionais,
+          }
+        : x,
+    );
+    // `atualizar` soma o preço de TODOS os passeios (× pessoas) no total.
+    atualizar({ passeios: l });
   };
 
   const addPasseio = () =>
@@ -262,7 +297,8 @@ export default function Vouchers() {
   const removePasseio = (i: number) => {
     if (!form) return;
     const l = form.passeios.filter((_, idx) => idx !== i);
-    set({ passeios: l.length ? l : [passeioVazio()] });
+    // Tirar um passeio também tira o preço dele do total.
+    atualizar({ passeios: l.length ? l : [passeioVazio()] });
   };
 
   const salvar = () => {
@@ -332,10 +368,7 @@ export default function Vouchers() {
         </div>
         <Botao
           icone="plus"
-          onClick={() => {
-            setForm(novoVoucher());
-            setErro("");
-          }}
+          onClick={() => abrirForm(novoVoucher())}
         >
           Criar voucher
         </Botao>
@@ -528,10 +561,7 @@ export default function Vouchers() {
               ) : (
                 <Botao
                   icone="plus"
-                  onClick={() => {
-                    setForm(novoVoucher());
-                    setErro("");
-                  }}
+                  onClick={() => abrirForm(novoVoucher())}
                 >
                   Criar voucher
                 </Botao>
@@ -689,10 +719,9 @@ export default function Vouchers() {
                       <BotaoIcone
                         icone="edit"
                         titulo="Editar"
-                        onClick={() => {
-                          setForm({ ...v, clientes: [...v.clientes], passeios: [...v.passeios] });
-                          setErro("");
-                        }}
+                        onClick={() =>
+                          abrirForm({ ...v, clientes: [...v.clientes], passeios: [...v.passeios] })
+                        }
                       />
                       <BotaoIcone
                         icone="trash"
@@ -789,7 +818,7 @@ export default function Vouchers() {
                 <EntradaNumero
                   min={1}
                   valor={form.pessoas}
-                  aoMudar={(n) => set({ pessoas: n })}
+                  aoMudar={(n) => atualizar({ pessoas: n })}
                 />
               </Campo>
             </div>
@@ -950,13 +979,41 @@ export default function Vouchers() {
 
             {/* Pagamento */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Campo rotulo="Valor total (R$)">
-                <EntradaNumero
-                  min={0}
-                  step="0.01"
-                  valor={form.total}
-                  aoMudar={(n) => set({ total: n })}
-                />
+              <Campo
+                rotulo="Valor total (R$)"
+                dica={
+                  totalManual
+                    ? totalSugerido(form, config.servicos) > 0
+                      ? `soma dos passeios: ${brl(totalSugerido(form, config.servicos))}`
+                      : "digitado à mão"
+                    : `soma dos passeios × ${totalPessoas(form)} pessoa${totalPessoas(form) > 1 ? "s" : ""}`
+                }
+              >
+                <div className="flex gap-2">
+                  <EntradaNumero
+                    min={0}
+                    step="0.01"
+                    valor={form.total}
+                    aoMudar={(n) => {
+                      // Digitou à mão: passa a respeitar o valor da pessoa.
+                      setTotalManual(true);
+                      set({ total: n });
+                    }}
+                  />
+                  {totalManual && totalSugerido(form, config.servicos) > 0 && (
+                    <button
+                      type="button"
+                      title={`Voltar para a soma dos passeios: ${brl(totalSugerido(form, config.servicos))}`}
+                      onClick={() => {
+                        setTotalManual(false);
+                        set({ total: totalSugerido(form, config.servicos) });
+                      }}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-sky-50 px-3 text-xs font-bold whitespace-nowrap text-sky-700 transition hover:bg-sky-100"
+                    >
+                      <Icon name="refresh" className="size-3.5" /> Somar passeios
+                    </button>
+                  )}
+                </div>
               </Campo>
               <Campo
                 rotulo="Desconto"

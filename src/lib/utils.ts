@@ -1,4 +1,4 @@
-import type { Config, Passeio, StatusVoucher, Voucher } from "@/types";
+import type { Config, Passeio, Servico, StatusVoucher, Voucher } from "@/types";
 
 export const uid = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
@@ -364,6 +364,28 @@ export const aReceber = (v: Voucher) =>
 
 export const totalPessoas = (v: Voucher) =>
   Number(v.pessoas) || (v.clientes || []).filter((n) => n.trim()).length || 1;
+
+/** Serviço cadastrado com esse nome (ignora maiúsculas/acentos/espaços nas pontas). */
+export const servicoPorNome = (servicos: Servico[], nome: string) => {
+  const alvo = normalizar((nome || "").trim());
+  if (!alvo) return undefined;
+  return servicos.find((s) => normalizar(s.nome.trim()) === alvo);
+};
+
+/**
+ * Soma dos preços de TODOS os passeios do voucher que batem com um serviço
+ * cadastrado, multiplicada pelo nº de pessoas. Passeio digitado à mão (sem
+ * serviço correspondente) não entra na conta.
+ * Usado para preencher o "Valor total" automaticamente no formulário.
+ */
+export const totalSugerido = (v: Voucher, servicos: Servico[]) => {
+  const pessoas = totalPessoas(v);
+  const soma = (v.passeios || []).reduce(
+    (s, p) => s + (servicoPorNome(servicos, p.nome)?.preco || 0),
+    0,
+  );
+  return Math.round(soma * pessoas * 100) / 100;
+};
 
 export const gerarCodigo = (prefixo = "VP") => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
