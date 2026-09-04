@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store";
 import type { StatusVoucher, Voucher } from "@/types";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import {
   AreaTexto,
   Aviso,
@@ -23,6 +23,7 @@ import {
   brl,
   dataBR,
   datasPasseios,
+  DIAS_PROXIMOS,
   gerarCodigo,
   gerarHorarios,
   hoje,
@@ -32,16 +33,24 @@ import {
   nomesClientes,
   nomesPasseios,
   normalizar,
+  ordenarPorPeriodo,
   passeioVazio,
+  periodoVoucher,
+  PERIODOS_VOUCHER,
   primeiraData,
+  proximaData,
   rotuloRelativo,
+  servicoPorNome,
   STATUS_LISTA,
   STATUS_META,
   statusMeta,
+  todasDatas,
   totalComDesconto,
   totalPessoas,
+  totalSugerido,
   uid,
   valorDesconto,
+  type PeriodoVoucher,
 } from "@/lib/utils";
 import {
   baixarEAbrirWhatsApp,
@@ -53,6 +62,53 @@ import {
 import { cn } from "@/utils/cn";
 
 const HORARIOS = gerarHorarios("04:00", "23:00");
+
+/** Textos e visual de cada aba de período. */
+const ABAS: Record<
+  PeriodoVoucher,
+  { label: string; curto: string; descricao: string; icone: IconName; ativo: string; badge: string }
+> = {
+  passados: {
+    label: "Já realizados",
+    curto: "Realizados",
+    descricao: "Passeios com data anterior a hoje.",
+    icone: "history",
+    ativo: "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200",
+    badge: "bg-slate-200 text-slate-700",
+  },
+  proximos: {
+    label: `Hoje e próximos ${DIAS_PROXIMOS} dias`,
+    curto: `Hoje + ${DIAS_PROXIMOS} dias`,
+    descricao: `Passeios de hoje e dos próximos ${DIAS_PROXIMOS} dias.`,
+    icone: "calendar",
+    ativo: "bg-white text-sky-700 shadow-sm ring-1 ring-sky-200",
+    badge: "bg-sky-600 text-white",
+  },
+  futuros: {
+    label: `Mais de ${DIAS_PROXIMOS} dias`,
+    curto: `+${DIAS_PROXIMOS} dias`,
+    descricao: `Passeios marcados para depois dos próximos ${DIAS_PROXIMOS} dias.`,
+    icone: "calendarClock",
+    ativo: "bg-white text-amber-700 shadow-sm ring-1 ring-amber-200",
+    badge: "bg-amber-500 text-white",
+  },
+};
+
+/** Texto do estado vazio de cada aba (quando não há filtro ativo). */
+const VAZIO_ABA: Record<PeriodoVoucher, { titulo: string; texto: string }> = {
+  passados: {
+    titulo: "Nenhum passeio realizado",
+    texto: "Quando a data de um passeio passar, o voucher aparece aqui automaticamente.",
+  },
+  proximos: {
+    titulo: `Nada para hoje nem para os próximos ${DIAS_PROXIMOS} dias`,
+    texto: "Crie um voucher ou veja as outras abas para conferir os passeios já realizados e os mais adiante.",
+  },
+  futuros: {
+    titulo: `Nenhum passeio com mais de ${DIAS_PROXIMOS} dias`,
+    texto: `Vouchers com passeio marcado para depois dos próximos ${DIAS_PROXIMOS} dias aparecem aqui.`,
+  },
+};
 
 const novoVoucher = (): Voucher => ({
   id: uid(),
@@ -76,39 +132,64 @@ const novoVoucher = (): Voucher => ({
 export default function Vouchers() {
   const { vouchers, config, salvarVoucher, removerVoucher, mudarStatus, notificar } = useStore();
   const [busca, setBusca] = useState("");
+  const [aba, setAba] = useState<PeriodoVoucher>("proximos");
   const [filtro, setFiltro] = useState<"todos" | StatusVoucher>("todos");
   const [filtroPasseio, setFiltroPasseio] = useState("todos");
   const [periodo, setPeriodo] = useState<{ de: string; ate: string }>({ de: "", ate: "" });
   const [form, setForm] = useState<Voucher | null>(null);
+  /**
+   * true quando a pessoa digitou o "Valor total" à mão. A partir daí o app
+   * para de recalcular o total ao mexer nos passeios/pessoas, para não
+   * apagar um valor negociado. O botão "Somar passeios" volta ao automático.
+   */
+  const [totalManual, setTotalManual] = useState(false);
   const [erro, setErro] = useState("");
   const [excluir, setExcluir] = useState<Voucher | null>(null);
   const [previa, setPrevia] = useState<Voucher | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
 
-  const lista = useMemo(() => {
+  /**
+   * "Hoje" fica em estado (e não é lido direto no render) para a tela
+   * reclassificar as abas sozinha quando a data virar com o app aberto —
+   * o voucher de hoje passa para "Já realizados" sem precisar recarregar.
+   */
+  const [h, setH] = useState(hoje);
+  useEffect(() => {
+    const t = window.setInterval(() => setH((atual) => (atual === hoje() ? atual : hoje())), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  /** Vouchers que passam na busca e nos filtros (status, passeio, período). */
+  const filtrados = useMemo(() => {
     const q = normalizar(busca.trim());
     const temPeriodo = Boolean(periodo.de || periodo.ate);
-    return vouchers
-      .filter((v) => {
-        if (filtro !== "todos" && v.status !== filtro) return false;
-        if (filtroPasseio !== "todos" && !(v.passeios || []).some((p) => p.nome.trim() === filtroPasseio))
-          return false;
-        if (temPeriodo) {
-          const datas = (v.passeios || []).flatMap((p) =>
-            [p.data, p.dataVolta].filter((d): d is string => !!d),
-          );
-          const noPeriodo = datas.some(
-            (d) => (!periodo.de || d >= periodo.de) && (!periodo.ate || d <= periodo.ate),
-          );
-          if (!noPeriodo) return false;
-        }
-        if (!q) return true;
-        return normalizar(
-          `${v.codigo} ${nomesClientes(v)} ${nomesPasseios(v)} ${v.hotel} ${v.telefone}`,
-        ).includes(q);
-      })
-      .sort((a, b) => (primeiraData(b) || b.criadoEm).localeCompare(primeiraData(a) || a.criadoEm));
+    return vouchers.filter((v) => {
+      if (filtro !== "todos" && v.status !== filtro) return false;
+      if (filtroPasseio !== "todos" && !(v.passeios || []).some((p) => p.nome.trim() === filtroPasseio))
+        return false;
+      if (temPeriodo) {
+        const noPeriodo = todasDatas(v).some(
+          (d) => (!periodo.de || d >= periodo.de) && (!periodo.ate || d <= periodo.ate),
+        );
+        if (!noPeriodo) return false;
+      }
+      if (!q) return true;
+      return normalizar(
+        `${v.codigo} ${nomesClientes(v)} ${nomesPasseios(v)} ${v.hotel} ${v.telefone}`,
+      ).includes(q);
+    });
   }, [vouchers, busca, filtro, filtroPasseio, periodo]);
+
+  /** Os vouchers filtrados separados em cada aba, já na ordem certa. */
+  const porAba = useMemo(() => {
+    const grupos: Record<PeriodoVoucher, Voucher[]> = { passados: [], proximos: [], futuros: [] };
+    filtrados.forEach((v) => grupos[periodoVoucher(v, h)].push(v));
+    PERIODOS_VOUCHER.forEach((p) => (grupos[p] = ordenarPorPeriodo(grupos[p], p, h)));
+    return grupos;
+  }, [filtrados, h]);
+
+  const lista = porAba[aba];
+  const totalFiltrado = filtrados.length;
 
   const stats = useMemo(() => {
     const ativos = vouchers.filter((v) => v.status !== "cancelado");
@@ -150,11 +231,32 @@ export default function Vouchers() {
   /* ---------------- formulário ---------------- */
   const set = (p: Partial<Voucher>) => setForm((f) => (f ? { ...f, ...p } : f));
 
+  /**
+   * Atualiza o formulário e, enquanto o total não foi digitado à mão,
+   * recalcula o "Valor total" como a SOMA de todos os passeios × pessoas.
+   * Antes o total era sobrescrito só com o preço do último passeio escolhido.
+   */
+  const atualizar = (p: Partial<Voucher>) =>
+    setForm((f) => {
+      if (!f) return f;
+      const novo = { ...f, ...p };
+      return totalManual ? novo : { ...novo, total: totalSugerido(novo, config.servicos) };
+    });
+
+  /** Abre o formulário (novo ou edição) já sabendo se o total é automático ou manual. */
+  const abrirForm = (v: Voucher) => {
+    setForm(v);
+    setErro("");
+    // Se o total salvo é exatamente a soma dos passeios, continua automático;
+    // se foi negociado/digitado (diferente da soma), fica como está.
+    setTotalManual(v.total !== totalSugerido(v, config.servicos));
+  };
+
   const setCliente = (i: number, valor: string) => {
     if (!form) return;
     const l = [...form.clientes];
     l[i] = valor;
-    set({ clientes: l, pessoas: Math.max(form.pessoas, l.filter((n) => n.trim()).length) });
+    atualizar({ clientes: l, pessoas: Math.max(form.pessoas, l.filter((n) => n.trim()).length) });
   };
 
   const addCliente = () => form && set({ clientes: [...form.clientes, ""] });
@@ -173,14 +275,20 @@ export default function Vouchers() {
 
   const escolherServico = (i: number, nome: string) => {
     if (!form) return;
-    const s = config.servicos.find((x) => x.nome === nome);
-    setPasseio(i, {
-      nome,
-      oQueLevar: s?.oQueLevar ?? form.passeios[i].oQueLevar,
-      local: s?.pontoRetorno ?? form.passeios[i].local,
-      informacoesAdicionais: s?.informacoesAdicionais ?? form.passeios[i].informacoesAdicionais,
-    });
-    if (s) set({ total: s.preco * (form.pessoas || 1) });
+    const s = servicoPorNome(config.servicos, nome);
+    const l = form.passeios.map((x, idx) =>
+      idx === i
+        ? {
+            ...x,
+            nome,
+            oQueLevar: s?.oQueLevar ?? x.oQueLevar,
+            local: s?.pontoRetorno ?? x.local,
+            informacoesAdicionais: s?.informacoesAdicionais ?? x.informacoesAdicionais,
+          }
+        : x,
+    );
+    // `atualizar` soma o preço de TODOS os passeios (× pessoas) no total.
+    atualizar({ passeios: l });
   };
 
   const addPasseio = () =>
@@ -189,7 +297,8 @@ export default function Vouchers() {
   const removePasseio = (i: number) => {
     if (!form) return;
     const l = form.passeios.filter((_, idx) => idx !== i);
-    set({ passeios: l.length ? l : [passeioVazio()] });
+    // Tirar um passeio também tira o preço dele do total.
+    atualizar({ passeios: l.length ? l : [passeioVazio()] });
   };
 
   const salvar = () => {
@@ -201,13 +310,17 @@ export default function Vouchers() {
     if (form.entrada > totalComDesconto(form))
       return setErro("A entrada não pode ser maior que o total (com desconto).");
 
-    salvarVoucher({
+    const salvo: Voucher = {
       ...form,
       clientes,
       passeios,
       pessoas: Math.max(1, Number(form.pessoas) || clientes.length),
       codigo: form.codigo.trim().toUpperCase(),
-    });
+    };
+    salvarVoucher(salvo);
+    // Leva para a aba em que o voucher salvo vai aparecer, para ele não
+    // "sumir" quando a data cai em outro período (ex.: passeio daqui a 1 mês).
+    setAba(periodoVoucher(salvo, h));
     setForm(null);
     setErro("");
   };
@@ -255,10 +368,7 @@ export default function Vouchers() {
         </div>
         <Botao
           icone="plus"
-          onClick={() => {
-            setForm(novoVoucher());
-            setErro("");
-          }}
+          onClick={() => abrirForm(novoVoucher())}
         >
           Criar voucher
         </Botao>
@@ -366,30 +476,93 @@ export default function Vouchers() {
 
             {filtrosAtivos && (
               <p className="pb-1 text-xs font-semibold text-slate-500 lg:ml-auto lg:text-right">
-                {lista.length} resultado{lista.length !== 1 ? "s" : ""} com os filtros aplicados
+                {totalFiltrado} resultado{totalFiltrado !== 1 ? "s" : ""} com os filtros aplicados
               </p>
             )}
           </div>
         </div>
       </Cartao>
 
+      {/* Abas por período: separam os vouchers pela data do passeio em relação a hoje */}
+      <div className="space-y-2">
+        <div
+          role="tablist"
+          aria-label="Vouchers por período do passeio"
+          className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-200/70 p-1"
+        >
+          {PERIODOS_VOUCHER.map((p) => {
+            const meta = ABAS[p];
+            const qtd = porAba[p].length;
+            const ativa = aba === p;
+            return (
+              <button
+                key={p}
+                role="tab"
+                id={`aba-${p}`}
+                aria-selected={ativa}
+                aria-controls={`painel-${p}`}
+                onClick={() => setAba(p)}
+                className={cn(
+                  // No celular: rótulo curto em cima e contagem embaixo (3 colunas
+                  // cabem sem cortar texto). Em telas maiores: ícone + rótulo + contagem.
+                  "flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-bold transition sm:flex-row sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm",
+                  ativa ? meta.ativo : "text-slate-500 hover:bg-white/60 hover:text-slate-800",
+                )}
+              >
+                <Icon name={meta.icone} className="hidden size-4 shrink-0 sm:block" />
+                <span className="max-w-full truncate sm:hidden">{meta.curto}</span>
+                <span className="hidden truncate sm:inline">{meta.label}</span>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-extrabold tabular-nums sm:px-2 sm:text-[11px]",
+                    ativa ? meta.badge : "bg-slate-300/70 text-slate-600",
+                  )}
+                >
+                  {qtd}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="px-1 text-xs text-slate-500">
+          {ABAS[aba].descricao} Hoje é <b className="text-slate-700">{dataBR(h)}</b>.
+        </p>
+      </div>
+
       {lista.length === 0 ? (
         <Cartao>
           <Vazio
-            icone="ticket"
-            titulo="Nenhum voucher encontrado"
+            icone={vouchers.length > 0 && !filtrosAtivos && !busca ? ABAS[aba].icone : "ticket"}
+            titulo={
+              !vouchers.length
+                ? "Nenhum voucher cadastrado"
+                : filtrosAtivos || busca
+                  ? "Nenhum voucher encontrado nesta aba"
+                  : VAZIO_ABA[aba].titulo
+            }
             texto={
-              filtrosAtivos
-                ? "Nenhum voucher bate com o status, passeio ou período escolhido. Limpe os filtros para ver todos."
-                : "Crie o primeiro voucher com os dados que você recebeu pelo WhatsApp."
+              !vouchers.length
+                ? "Crie o primeiro voucher com os dados que você recebeu pelo WhatsApp."
+                : filtrosAtivos || busca
+                  ? totalFiltrado > 0
+                    ? `Nenhum resultado em "${ABAS[aba].label}", mas há ${totalFiltrado} voucher${totalFiltrado !== 1 ? "s" : ""} nas outras abas.`
+                    : "Nenhum voucher bate com a busca, o status, o passeio ou o período escolhido. Limpe os filtros para ver todos."
+                  : VAZIO_ABA[aba].texto
             }
             acao={
               filtrosAtivos ? (
                 <Botao variante="contorno" icone="close" onClick={limparFiltros}>
                   Limpar filtros
                 </Botao>
+              ) : busca ? (
+                <Botao variante="contorno" icone="close" onClick={() => setBusca("")}>
+                  Limpar busca
+                </Botao>
               ) : (
-                <Botao icone="plus" onClick={() => setForm(novoVoucher())}>
+                <Botao
+                  icone="plus"
+                  onClick={() => abrirForm(novoVoucher())}
+                >
                   Criar voucher
                 </Botao>
               )
@@ -397,9 +570,16 @@ export default function Vouchers() {
           />
         </Cartao>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <div
+          role="tabpanel"
+          id={`painel-${aba}`}
+          aria-labelledby={`aba-${aba}`}
+          className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+        >
           {lista.map((v) => {
-            const data = primeiraData(v);
+            // Na aba de próximos/futuros o selo mostra a próxima data que
+            // ainda vai acontecer; nos realizados, a primeira data do passeio.
+            const data = aba === "passados" ? primeiraData(v) : proximaData(v, h) || primeiraData(v);
             const linkTelefone = linkWhatsAppTelefone(v.telefone);
             return (
               <div
@@ -539,10 +719,9 @@ export default function Vouchers() {
                       <BotaoIcone
                         icone="edit"
                         titulo="Editar"
-                        onClick={() => {
-                          setForm({ ...v, clientes: [...v.clientes], passeios: [...v.passeios] });
-                          setErro("");
-                        }}
+                        onClick={() =>
+                          abrirForm({ ...v, clientes: [...v.clientes], passeios: [...v.passeios] })
+                        }
                       />
                       <BotaoIcone
                         icone="trash"
@@ -639,7 +818,7 @@ export default function Vouchers() {
                 <EntradaNumero
                   min={1}
                   valor={form.pessoas}
-                  aoMudar={(n) => set({ pessoas: n })}
+                  aoMudar={(n) => atualizar({ pessoas: n })}
                 />
               </Campo>
             </div>
@@ -800,13 +979,41 @@ export default function Vouchers() {
 
             {/* Pagamento */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Campo rotulo="Valor total (R$)">
-                <EntradaNumero
-                  min={0}
-                  step="0.01"
-                  valor={form.total}
-                  aoMudar={(n) => set({ total: n })}
-                />
+              <Campo
+                rotulo="Valor total (R$)"
+                dica={
+                  totalManual
+                    ? totalSugerido(form, config.servicos) > 0
+                      ? `soma dos passeios: ${brl(totalSugerido(form, config.servicos))}`
+                      : "digitado à mão"
+                    : `soma dos passeios × ${totalPessoas(form)} pessoa${totalPessoas(form) > 1 ? "s" : ""}`
+                }
+              >
+                <div className="flex gap-2">
+                  <EntradaNumero
+                    min={0}
+                    step="0.01"
+                    valor={form.total}
+                    aoMudar={(n) => {
+                      // Digitou à mão: passa a respeitar o valor da pessoa.
+                      setTotalManual(true);
+                      set({ total: n });
+                    }}
+                  />
+                  {totalManual && totalSugerido(form, config.servicos) > 0 && (
+                    <button
+                      type="button"
+                      title={`Voltar para a soma dos passeios: ${brl(totalSugerido(form, config.servicos))}`}
+                      onClick={() => {
+                        setTotalManual(false);
+                        set({ total: totalSugerido(form, config.servicos) });
+                      }}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-sky-50 px-3 text-xs font-bold whitespace-nowrap text-sky-700 transition hover:bg-sky-100"
+                    >
+                      <Icon name="refresh" className="size-3.5" /> Somar passeios
+                    </button>
+                  )}
+                </div>
               </Campo>
               <Campo
                 rotulo="Desconto"
