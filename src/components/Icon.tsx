@@ -35,6 +35,23 @@ const P: Record<string, JSX.Element> = {
       <path d="M13 5v2M13 11v2M13 17v2" strokeDasharray="0.1 3.2" />
     </>
   ),
+  /* Relógio com seta voltando: passeios que já aconteceram */
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </>
+  ),
+  /* Calendário com relógio: passeios mais adiante */
+  calendarClock: (
+    <>
+      <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5" />
+      <path d="M16 2v4M8 2v4M3 10h5" />
+      <circle cx="16" cy="16" r="6" />
+      <path d="M16 14v2.5l1.5 1" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />

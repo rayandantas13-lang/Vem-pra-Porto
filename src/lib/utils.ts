@@ -267,20 +267,82 @@ export const nomesPasseios = (v: Voucher) =>
     .filter(Boolean)
     .join(" + ");
 
+/** Todas as datas do voucher (ida e volta), sem repetição e em ordem crescente. */
+export const todasDatas = (v: Voucher) =>
+  [
+    ...new Set(
+      (v.passeios || []).flatMap((p) => [p.data, p.dataVolta].filter((d): d is string => !!d)),
+    ),
+  ].sort();
+
 /** Datas dos passeios: "29/07/2026 e 30/07/2026" (considera ida + volta) */
-export const datasPasseios = (v: Voucher) => {
-  const datas = (v.passeios || [])
-    .flatMap((p) => [p.data, p.dataVolta].filter((d): d is string => !!d));
-  const l = [...new Set(datas)].sort();
-  return l.map(dataBR).join(" e ");
-};
+export const datasPasseios = (v: Voucher) => todasDatas(v).map(dataBR).join(" e ");
 
 /** Primeira data (usada para ordenação e agenda) – prioriza ida */
-export const primeiraData = (v: Voucher) => {
-  const datas = (v.passeios || [])
-    .flatMap((p) => [p.data, p.dataVolta].filter((d): d is string => !!d))
-    .sort();
-  return datas[0] || "";
+export const primeiraData = (v: Voucher) => todasDatas(v)[0] || "";
+
+/** Última data (ida ou volta): o dia em que o voucher "termina". */
+export const ultimaData = (v: Voucher) => {
+  const l = todasDatas(v);
+  return l[l.length - 1] || "";
+};
+
+/** Próxima data do voucher a partir de `h` (inclusive); "" quando todas já passaram. */
+export const proximaData = (v: Voucher, h = hoje()) => todasDatas(v).find((d) => d >= h) || "";
+
+/** Menor horário do voucher em um dia específico (ida ou volta); "" se não houver. */
+const horaNaData = (v: Voucher, data: string) =>
+  (v.passeios || [])
+    .flatMap((p) => [
+      p.data === data ? p.hora || "" : "",
+      p.dataVolta === data ? p.horaVolta || "" : "",
+    ])
+    .filter(Boolean)
+    .sort()[0] || "";
+
+/* ---------------- Abas por período ---------------- */
+
+/** Até quantos dias à frente um passeio ainda conta como "próximo" (hoje + 7). */
+export const DIAS_PROXIMOS = 7;
+
+export type PeriodoVoucher = "passados" | "proximos" | "futuros";
+
+export const PERIODOS_VOUCHER: PeriodoVoucher[] = ["passados", "proximos", "futuros"];
+
+/**
+ * Em qual aba o voucher aparece, comparando as datas dos passeios (ida e
+ * volta) com o dia de hoje:
+ * - "passados": todas as datas já passaram;
+ * - "proximos": tem passeio hoje ou nos próximos 7 dias;
+ * - "futuros": o próximo passeio está a mais de 7 dias.
+ * Um voucher com passeio ontem e outro amanhã ainda é "próximo" — só vira
+ * "passado" quando o último dia dele já ficou para trás. Voucher sem nenhuma
+ * data fica em "proximos" para não passar despercebido.
+ */
+export const periodoVoucher = (v: Voucher, h = hoje()): PeriodoVoucher => {
+  const datas = todasDatas(v);
+  if (!datas.length) return "proximos";
+  const proxima = datas.find((d) => d >= h);
+  if (!proxima) return "passados";
+  return diasEntre(h, proxima) <= DIAS_PROXIMOS ? "proximos" : "futuros";
+};
+
+/**
+ * Ordena a lista de uma aba do jeito mais útil para o dia a dia:
+ * - passados: do mais recente para o mais antigo;
+ * - próximos e futuros: do mais perto para o mais longe (empate: hora do
+ *   passeio naquele dia e depois ordem de criação).
+ */
+export const ordenarPorPeriodo = (lista: Voucher[], periodo: PeriodoVoucher, h = hoje()) => {
+  if (periodo === "passados")
+    return [...lista].sort((a, b) =>
+      `${ultimaData(b)} ${b.criadoEm}`.localeCompare(`${ultimaData(a)} ${a.criadoEm}`),
+    );
+  const chave = (v: Voucher) => {
+    const d = proximaData(v, h);
+    return `${d} ${horaNaData(v, d)} ${v.criadoEm}`;
+  };
+  return [...lista].sort((a, b) => chave(a).localeCompare(chave(b)));
 };
 
 /** Valor do desconto em reais sobre o total. Aceita desconto em % ou valor fixo (R$). */
