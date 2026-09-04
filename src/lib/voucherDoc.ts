@@ -373,43 +373,60 @@ class PDFVoucherBuilder {
     // Box principal
     this.box(this.M, this.y, this.W, boxH, CORES.escuro, false, 2);
 
-    const colWidth = this.W / 3;
-    const cx = (i: number) => this.M + i * colWidth + colWidth / 2;
-
-    // Ordem das colunas: VALOR TOTAL · ENTRADA PAGA · A RECEBER
-
-    // VALOR TOTAL (esquerda)
-    this.texto("VALOR TOTAL", cx(0), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
-    if (temDesconto) {
-      const original = brl(total);
-      // Mede a largura DEPOIS de setar a fonte do texto (9pt bold) — se medir
-      // antes, pega a fonte anterior e o risco sai maior que o texto e
-      // descentralizado.
-      this.texto(original, cx(0), this.y + 14.5, 9, "bold", CORES.cinzaClaro, "center");
-      const tw = this.doc.getTextWidth(original);
-      // Risco no meio dos dígitos: baseline (y+14.5) − ~1,1mm (33% do corpo de
-      // 9pt ≈ 1,05mm). Coordenadas estão em mm; fonte em pt (9pt ≈ 3,2mm).
-      this.linha(cx(0) - tw / 2, this.y + 13.4, tw, CORES.destaque);
-      this.texto(brl(comDesconto), cx(0), this.y + 22, 14, "bold", CORES.destaque, "center");
+    if (voucher.status === "concluido") {
+      // Voucher CONCLUÍDO: o PDF sai sem os valores. A caixa preta de
+      // pagamento fica apenas com o aviso centralizado no meio.
+      const rotulo = (STATUS_META.concluido?.label ?? "Concluído").toUpperCase();
+      const FONTE = 15; // pt
+      const fmm = FONTE * 0.3528; // 15pt ≈ 5,3mm (p/ compensar a linha de base)
+      this.texto(
+        rotulo,
+        this.M + this.W / 2,
+        this.y + boxH / 2 + fmm * 0.35,
+        FONTE,
+        "bold",
+        CORES.branco,
+        "center"
+      );
     } else {
-      this.texto(brl(total), cx(0), this.y + 16.5, 12, "bold", CORES.branco, "center");
+      const colWidth = this.W / 3;
+      const cx = (i: number) => this.M + i * colWidth + colWidth / 2;
+
+      // Ordem das colunas: VALOR TOTAL · ENTRADA PAGA · A RECEBER
+
+      // VALOR TOTAL (esquerda)
+      this.texto("VALOR TOTAL", cx(0), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+      if (temDesconto) {
+        const original = brl(total);
+        // Mede a largura DEPOIS de setar a fonte do texto (9pt bold) — se medir
+        // antes, pega a fonte anterior e o risco sai maior que o texto e
+        // descentralizado.
+        this.texto(original, cx(0), this.y + 14.5, 9, "bold", CORES.cinzaClaro, "center");
+        const tw = this.doc.getTextWidth(original);
+        // Risco no meio dos dígitos: baseline (y+14.5) − ~1,1mm (33% do corpo de
+        // 9pt ≈ 1,05mm). Coordenadas estão em mm; fonte em pt (9pt ≈ 3,2mm).
+        this.linha(cx(0) - tw / 2, this.y + 13.4, tw, CORES.destaque);
+        this.texto(brl(comDesconto), cx(0), this.y + 22, 14, "bold", CORES.destaque, "center");
+      } else {
+        this.texto(brl(total), cx(0), this.y + 16.5, 12, "bold", CORES.branco, "center");
+      }
+
+      // ENTRADA PAGA (meio)
+      this.texto("ENTRADA PAGA", cx(1), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+      this.texto(brl(entrada), cx(1), this.y + (temDesconto ? 19 : 16.5), 12, "bold", CORES.branco, "center");
+
+      // A RECEBER (direita)
+      this.texto("A RECEBER", cx(2), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
+      this.texto(
+        brl(aReceberValor),
+        cx(2),
+        this.y + (temDesconto ? 19 : 16.5),
+        temDesconto ? 14 : 15,
+        "bold",
+        CORES.destaque,
+        "center"
+      );
     }
-
-    // ENTRADA PAGA (meio)
-    this.texto("ENTRADA PAGA", cx(1), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
-    this.texto(brl(entrada), cx(1), this.y + (temDesconto ? 19 : 16.5), 12, "bold", CORES.branco, "center");
-
-    // A RECEBER (direita)
-    this.texto("A RECEBER", cx(2), this.y + 7, 7, "normal", CORES.cinzaClaro, "center");
-    this.texto(
-      brl(aReceberValor),
-      cx(2),
-      this.y + (temDesconto ? 19 : 16.5),
-      temDesconto ? 14 : 15,
-      "bold",
-      CORES.destaque,
-      "center"
-    );
 
     this.y += boxH + 6;
 
