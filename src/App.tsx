@@ -69,8 +69,19 @@ function Toasts() {
 function Painel() {
   const [rota, ir] = useRota();
   const [menuAberto, setMenuAberto] = useState(false);
-  const { config, vouchers, usuario, ehAdmin, sair, carregando, erroCarga, local, apiDesatualizada } =
-    useStore();
+  const {
+    config,
+    vouchers,
+    usuario,
+    ehAdmin,
+    sair,
+    carregando,
+    sincronizando,
+    recarregar,
+    erroCarga,
+    local,
+    apiDesatualizada,
+  } = useStore();
 
   const hojeInfo = useMemo(() => {
     const h = hoje();
@@ -230,21 +241,49 @@ function Painel() {
                 "hidden items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold ring-1 sm:flex",
                 local ? "text-amber-700 ring-amber-200" : "text-slate-600 ring-slate-200",
               )}
-              title={local ? "Dados apenas neste navegador" : "Salvando no Google Sheets"}
+              title={
+                sincronizando
+                  ? "Sincronizando com o Google Sheets em segundo plano..."
+                  : local
+                    ? "Dados apenas neste navegador"
+                    : "Conectado ao Google Sheets"
+              }
             >
               <span className="relative flex size-2">
-                {!local && (
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                {sincronizando ? (
+                  <span className="size-2 animate-spin rounded-full border border-sky-500 border-t-transparent" />
+                ) : (
+                  <>
+                    {!local && (
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    )}
+                    <span
+                      className={cn(
+                        "relative inline-flex size-2 rounded-full",
+                        local ? "bg-amber-500" : "bg-emerald-500",
+                      )}
+                    />
+                  </>
                 )}
-                <span
-                  className={cn(
-                    "relative inline-flex size-2 rounded-full",
-                    local ? "bg-amber-500" : "bg-emerald-500",
-                  )}
-                />
               </span>
-              {local ? "Local" : "On"}
+              <span>{local ? "Local" : "On"}</span>
+              {sincronizando && (
+                <span className="font-normal text-[11px] text-slate-400">sincronizando</span>
+              )}
             </div>
+
+            <button
+              onClick={recarregar}
+              disabled={sincronizando}
+              title="Recarregar dados da planilha"
+              aria-label="Recarregar dados da planilha"
+              className="grid size-9 place-items-center rounded-xl bg-white text-slate-400 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40"
+            >
+              <Icon
+                name="refresh"
+                className={cn("size-4", sincronizando && "animate-spin text-sky-500")}
+              />
+            </button>
 
             <div className="flex items-center gap-2 rounded-xl bg-white p-1.5 ring-1 ring-slate-200">
               <span className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-slate-800 to-slate-600 text-xs font-bold text-white">

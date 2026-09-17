@@ -170,6 +170,13 @@ O endereço público do Apps Script e os dados que a tela precisa exibir podem a
 
 A proteção contra pessoas externas é feita no servidor: sem uma sessão válida, as ações de leitura e gravação são recusadas. Criptografar novamente o conteúdo dentro do HTTPS apenas esconderia visualmente o painel *Network*, mas a chave também teria de estar no navegador e não criaria segurança real.
 
+## Cache e Velocidade (v10)
+
+- **Abertura instantânea (0ms)**: ao abrir novas abas, janelas ou dar F5, os dados (vouchers, gastos e configurações) são carregados imediatamente do cache local (`localStorage`), sem travar a tela em carregamento.
+- **Sincronização em tempo real entre abas**: alterações feitas em uma janela (criação de voucher, edição ou cancelamento) são refletidas nas demais janelas abertas instantaneamente via `BroadcastChannel`, sem necessidade de recarregar a página.
+- **Login em etapa única**: a autenticação já entrega os dados iniciais junto com o token de sessão, eliminando a segunda chamada de rede e a tela de carregamento que ocorria após entrar.
+- **Otimização no Google Apps Script**: a verificação da estrutura das planilhas é mantida em cache de propriedades, evitando re-escanear todas as 6 abas a cada requisição HTTP.
+
 ## Desenvolvimento
 
 ```bash

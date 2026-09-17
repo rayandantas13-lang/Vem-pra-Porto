@@ -18,6 +18,7 @@ export interface Sessao {
   token: string;
   usuario: Usuario;
   expiraEm: string;
+  dados?: DadosApi;
 }
 
 /* ---------------- Voucher ---------------- */
