@@ -11,7 +11,7 @@ import {
 import type { Config, GastoOperacional, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
 import { api, modoLocal, versaoDesatualizada } from "@/api";
 import { CONFIG_PADRAO } from "@/data/seed";
-import { deduplicarPorId, normalizarVoucher, parseNumero, uid } from "@/lib/utils";
+import { deduplicarPorId, dinheiroValido, normalizarVoucher, uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
 const DADOS_CACHE_KEY = "vempraporto.cache.dados";
@@ -354,7 +354,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const vouchersNorm = deduplicarPorId(d.vouchers ?? []).map(normalizarVoucher);
         const gastosNorm = deduplicarPorId(d.gastos ?? []).map((g) => ({
           ...g,
-          valor: Math.max(0, parseNumero(g.valor)),
+          valor: dinheiroValido(g.valor),
         }));
         const configNorm = { ...CONFIG_PADRAO, ...(d.config ?? {}) };
 
@@ -435,7 +435,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const vouchersNorm = deduplicarPorId(s.dados.vouchers ?? []).map(normalizarVoucher);
           const gastosNorm = deduplicarPorId(s.dados.gastos ?? []).map((g) => ({
             ...g,
-            valor: Math.max(0, parseNumero(g.valor)),
+            valor: dinheiroValido(g.valor),
           }));
           const configNorm = { ...CONFIG_PADRAO, ...(s.dados.config ?? {}) };
 

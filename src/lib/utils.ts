@@ -380,10 +380,28 @@ export function parseNumero(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Teto de sanidade para valores em reais — o mesmo da validação e da leitura
+ * do Apps Script. Qualquer coisa acima disso vinda da planilha é lixo de
+ * versão antiga/digitação errada (ex.: "10.000.000.000.000.000" na coluna
+ * aReceber, no lugar de 1000), nunca um valor negociado de verdade.
+ */
+export const LIMITE_VALOR = 100_000_000;
+
+/**
+ * Converte e prende um valor de dinheiro entre 0 e o teto; NaN/lixo vira 0.
+ * É o `parseNumero` com trava de sanidade para uso em totais e exibições.
+ */
+export const dinheiroValido = (v: unknown) => {
+  const n = parseNumero(v);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, LIMITE_VALOR);
+};
+
 /** Valor do desconto em reais sobre o total. Aceita desconto em % ou valor fixo (R$). */
 export const valorDesconto = (v: Voucher) => {
-  const total = parseNumero(v.total);
-  const valor = parseNumero(v.desconto);
+  const total = dinheiroValido(v.total);
+  const valor = dinheiroValido(v.desconto);
   if (valor <= 0) return 0;
   if (v.tipoDesconto === "fixo") return Math.min(valor, total);
   // percentual
@@ -392,7 +410,7 @@ export const valorDesconto = (v: Voucher) => {
 
 /** Total já com o desconto aplicado (nunca negativo). */
 export const totalComDesconto = (v: Voucher) =>
-  Math.max(0, parseNumero(v.total) - valorDesconto(v));
+  Math.max(0, dinheiroValido(v.total) - valorDesconto(v));
 
 /**
  * Valor a receber do voucher.
@@ -400,11 +418,19 @@ export const totalComDesconto = (v: Voucher) =>
  * da planilha — inclusive 0), ele vale mais que o cálculo automático: é o
  * caso de valores negociados que não fecham em "total − desconto − entrada".
  * Sem valor manual, calcula: total com desconto − entrada (nunca negativo).
+ * Um "manual" ACIMA do teto é lixo da planilha (ex.: 10.000.000.000.000.000)
+ * e volta para o cálculo — era o que deixava o "a receber" do painel absurdo
+ * em vez da soma real dos pendentes.
  */
 export const aReceber = (v: Voucher) => {
-  if (typeof v.aReceber === "number" && Number.isFinite(v.aReceber))
+  if (
+    typeof v.aReceber === "number" &&
+    Number.isFinite(v.aReceber) &&
+    v.aReceber >= 0 &&
+    v.aReceber <= LIMITE_VALOR
+  )
     return Math.max(0, v.aReceber);
-  return Math.max(0, totalComDesconto(v) - parseNumero(v.entrada));
+  return Math.max(0, totalComDesconto(v) - dinheiroValido(v.entrada));
 };
 
 export const totalPessoas = (v: Voucher) =>
@@ -430,16 +456,19 @@ export function normalizarVoucher(v: Voucher): Voucher {
     Math.round(parseNumero(v.pessoas)) || clientes.filter((n) => n?.trim()).length || 1,
   );
 
-  let total = Math.max(0, parseNumero(v.total));
-  const entrada = Math.max(0, parseNumero(v.entrada));
-  const desconto = Math.max(0, parseNumero(v.desconto));
+  let total = dinheiroValido(v.total);
+  const entrada = dinheiroValido(v.entrada);
+  const desconto = dinheiroValido(v.desconto);
   // "A receber" manual (digitado na planilha ou no formulário) é preservado;
   // se vier como texto ("200", "R$ 200,00") é convertido para número.
   // Ausente/null = automático (o cálculo acontece na função aReceber).
-  const aReceberManual =
+  // Acima do teto é lixo da planilha — descartado para voltar o automático.
+  const aReceberLido =
     v.aReceber === undefined || v.aReceber === null
       ? undefined
       : Math.max(0, parseNumero(v.aReceber));
+  const aReceberManual =
+    aReceberLido === undefined || aReceberLido > LIMITE_VALOR ? undefined : aReceberLido;
 
   // Calcula o total com desconto e garante que ele não fique abaixo da entrada.
   // Vouchers antigos/planilha poderiam ter entrada > total (ex.: total=0 por dado

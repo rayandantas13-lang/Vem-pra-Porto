@@ -15,11 +15,37 @@ var ABAS = {
   Usuarios: ['id', 'nome', 'email', 'usuario', 'papel', 'senhaHash', 'salt', 'ativo', 'criadoEm', 'ultimoAcesso'],
   Vouchers: ['id', 'codigo', 'clientes', 'pessoas', 'hotel', 'telefone', 'contatoExtra', 'passeios',
              'servicos', 'datas', 'total', 'tipoDesconto', 'desconto', 'entrada', 'aReceber', 'formaPagamento', 'observacoes', 'status', 'criadoEm'],
-  Gastos: ['id', 'descricao', 'categoria', 'valor', 'data', 'observacao', 'criadoEm'], 
+  Gastos: ['id', 'descricao', 'categoria', 'valor', 'data', 'observacao', 'criadoEm'],
   Config: ['chave', 'valor', 'atualizadoEm'],
   Sessoes: ['id', 'token', 'usuarioId', 'expiraEm', 'criadoEm'],
   Auditoria: ['id', 'usuarioId', 'usuario', 'acao', 'recurso', 'recursoId', 'detalhes', 'criadoEm']
 };
+
+/**
+ * Colunas gravadas como NÚMERO de verdade na planilha (e não como texto).
+ * Antes tudo ia como string: a célula ficava alinhada à esquerda, não entrava
+ * em SOMA/somatórios da própria planilha e herdava qualquer formatação errada
+ * da coluna (foi o que fez o valor aparecer como DATA no lugar de número).
+ */
+var COLUNAS_NUMERICAS = {
+  Vouchers: { pessoas: true, total: true, desconto: true, entrada: true, aReceber: true },
+  Gastos: { valor: true }
+};
+
+/**
+ * Teto de sanidade para valores em reais — o mesmo máximo aceito na validação
+ * ao salvar. Qualquer coisa acima disso na planilha é lixo de versão antiga ou
+ * digitação errada (ex.: aReceber "10.000.000.000.000.000"), nunca um valor
+ * negociado de verdade.
+ */
+var TETO_DINHEIRO = 100000000;
+
+/** Lê dinheiro vindo da planilha preso entre 0 e o teto; NaN/lixo vira 0. */
+function dinheiroFolha(v) {
+  var n = parseNumeroGs(v);
+  if (!isFinite(n) || n < 0) return 0;
+  return n > TETO_DINHEIRO ? TETO_DINHEIRO : n;
+}
 
 var SEGURANCA = {
   // Enviada ao painel em todas as respostas. Quando o número aqui for menor
@@ -49,7 +75,18 @@ var SEGURANCA = {
   // v13: diagnóstico informa o NOME e a URL da planilha conectada ao script
   //      (status e GET) — para descobrir na hora quando se está editando uma
   //      planilha e o Apps Script lendo outra.
-  versao: '13',
+  // v14: saneamento dos valores em reais. A leitura passa a ter teto
+  //      (R$ 100 milhões): lixo na coluna "aReceber" (ex.:
+  //      "10.000.000.000.000.000" no lugar de 1000) deixa de ser tratado
+  //      como valor negociado e volta para o cálculo automático — era isso
+  //      que fazia o painel somar quatrilhões em vez dos pendentes da
+  //      planilha. As colunas de dinheiro passam a ser GRAVADAS como número
+  //      de verdade (antes iam como texto) e, na primeira requisição desta
+  //      versão, a planilha é reparada: o formato dessas colunas volta para
+  //      Automático (estavam exibindo o valor como DATA), linhas duplicadas
+  //      com o mesmo id são removidas (fica a mais recente) e um "aReceber"
+  //      absurdo vira o cálculo automático (total − desconto − entrada).
+  versao: '14',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -293,6 +330,14 @@ function configurarBanco() {
     });
   }
 
+  try {
+    repararValoresNumericos();
+  } catch (e) {
+    // Um problema na limpeza nunca pode derrubar o painel; dá para rodar
+    // repararPlanilha() à mão no editor do Apps Script depois.
+    Logger.log('repararValoresNumericos falhou: ' + e);
+  }
+
   PropertiesService.getScriptProperties().setProperty('banco_versao', SEGURANCA.versao);
 }
 
@@ -444,7 +489,15 @@ function gravar(nome, registro) {
   var alvo = alvos.length ? alvos[alvos.length - 1] : -1;
   for (var d = alvos.length - 2; d >= 0; d--) s.deleteRow(alvos[d]);
 
-  var valores = cols.map(function (col) { return valorCelula(registro[col]); });
+  var valores = cols.map(function (col) {
+    // Colunas de dinheiro viram NÚMERO na célula: texto "1000" não entra em
+    // SOMA da planilha e some/exibe errado conforme a formatação da coluna.
+    if (COLUNAS_NUMERICAS[nome] && COLUNAS_NUMERICAS[nome][col]) {
+      var n = parseNumeroGs(registro[col]);
+      if (isFinite(n)) return n;
+    }
+    return valorCelula(registro[col]);
+  });
   if (alvo === -1) s.appendRow(valores);
   else s.getRange(alvo, 1, 1, cols.length).setValues([valores]);
   return registro;
@@ -491,6 +544,141 @@ function porId(nome, id) {
     if (String(lista[i].id) === String(id)) achado = lista[i];
   }
   return achado;
+}
+
+/* ---------------- Reparo dos dados da planilha ---------------- */
+
+/**
+ * Pode ser executada à mão no editor do Apps Script (botão ▶ Executar) para
+ * refazer a limpeza sem precisar reimplantar/trocar versão.
+ */
+function repararPlanilha() {
+  repararValoresNumericos();
+  Logger.log('Reparo concluído: colunas de dinheiro saneadas.');
+}
+
+/**
+ * Saneamento rodado sozinho na primeira requisição de cada versão nova do
+ * Code.gs (via configurarBanco), em duas frentes:
+ *
+ * 1) FORMATO: as colunas de dinheiro (total, desconto, entrada, aReceber,
+ *    pessoas, valor) voltam para o formato AUTOMÁTICO — inclusive nas linhas
+ *    vazias, para o próximo appendRow nascer certo. Se a coluna foi formatada
+ *    como Data em algum momento (foi o que fez o total aparecer como data em
+ *    vez de número), isso é desfeito aqui. clearFormat também limpa negrito/
+ *    cor das células de DADOS dessas colunas — o cabeçalho não é tocado.
+ * 2) CONTEÚDO: as linhas são regravadas com dinheiro como NÚMERO de verdade;
+ *    linhas duplicadas com o mesmo id saem (fica a ÚLTIMA, a mesma que o
+ *    painel mostra) e um "aReceber" absurdo (acima do teto — lixo de versão
+ *    antiga/digitação, tipo "10.000.000.000.000.000") volta para o cálculo
+ *    automático (total − desconto − entrada). Um valor manual normal
+ *    (≤ teto), mesmo diferente do cálculo, continua respeitado.
+ */
+function repararValoresNumericos() {
+  Object.keys(COLUNAS_NUMERICAS).forEach(function (nome) {
+    repararAbaDinheiro(nome);
+  });
+}
+
+function repararAbaDinheiro(nome) {
+  var s = aba(nome);
+  var cols = ABAS[nome];
+  var numericas = COLUNAS_NUMERICAS[nome] || {};
+  var ultima = s.getLastRow();
+
+  // (1) Formato automático nas colunas de dinheiro.
+  var maxLinhas = Math.max(s.getMaxRows(), 2);
+  cols.forEach(function (col, i) {
+    if (!numericas[col]) return;
+    try {
+      s.getRange(2, i + 1, maxLinhas - 1, 1).clearFormat();
+    } catch (e) {
+      // Falha de formato não interrompe o reparo do conteúdo.
+      Logger.log('clearFormat ' + nome + '.' + col + ': ' + e);
+    }
+  });
+
+  if (ultima < 2) return;
+
+  // (2) Regrava o conteúdo saneado.
+  var dados = s.getRange(2, 1, ultima - 1, cols.length).getValues();
+  var idxId = cols.indexOf('id');
+  var jaVistos = {};
+  var manter = new Array(dados.length);
+  for (var i = dados.length - 1; i >= 0; i--) {
+    var vazia = !dados[i].some(function (v) { return v !== '' && v !== null; });
+    if (vazia) {
+      manter[i] = false;
+      continue;
+    }
+    var id = idxId >= 0 ? String(dados[i][idxId] || '') : '';
+    // Vale a ÚLTIMA linha de cada id — a mesma que o painel exibe.
+    if (id && jaVistos[id]) manter[i] = false;
+    else {
+      manter[i] = true;
+      if (id) jaVistos[id] = true;
+    }
+  }
+
+  var saida = [];
+  for (var r = 0; r < dados.length; r++) {
+    if (!manter[r]) continue;
+    saida.push(
+      nome === 'Vouchers'
+        ? repararLinhaVoucher(dados[r], cols)
+        : repararLinhaGenerica(dados[r], cols, numericas)
+    );
+  }
+
+  s.getRange(2, 1, ultima - 1, cols.length).clearContent();
+  if (saida.length) s.getRange(2, 1, saida.length, cols.length).setValues(saida);
+  var sobra = ultima - 1 - saida.length;
+  if (sobra > 0) s.deleteRows(2 + saida.length, sobra);
+}
+
+/**
+ * Linha de voucher regravada com pessoas/total/desconto/entrada/aReceber
+ * saneados. O "aReceber" manual só é mantido quando é um dinheiro válido
+ * dentro do teto; vazio, NaN ou absurdo volta para o cálculo automático.
+ */
+function repararLinhaVoucher(linha, cols) {
+  var pos = {};
+  cols.forEach(function (col, i) {
+    pos[col] = i;
+  });
+
+  var tipo = String(linha[pos.tipoDesconto]) === 'fixo' ? 'fixo' : 'percentual';
+  var total = dinheiroFolha(linha[pos.total]);
+  var entrada = dinheiroFolha(linha[pos.entrada]);
+  var desconto = dinheiroFolha(linha[pos.desconto]);
+  if (entrada > total) total = entrada;
+  var calculado = Math.max(0, total - entrada - descontoValorGs(total, tipo, desconto));
+
+  var bruto = linha[pos.aReceber];
+  var temDigitado = bruto !== '' && bruto !== null && bruto !== undefined;
+  var manual = temDigitado ? parseNumeroGs(bruto) : NaN;
+  var aReceberNovo =
+    temDigitado && isFinite(manual) && manual >= 0 && manual <= TETO_DINHEIRO
+      ? manual
+      : calculado;
+
+  var pessoas = Math.max(1, Math.round(parseNumeroGs(linha[pos.pessoas]))) || 1;
+
+  return cols.map(function (col) {
+    if (col === 'pessoas') return pessoas;
+    if (col === 'total') return total;
+    if (col === 'desconto') return desconto;
+    if (col === 'entrada') return entrada;
+    if (col === 'aReceber') return aReceberNovo;
+    return linha[pos[col]];
+  });
+}
+
+/** Demais abas com coluna de dinheiro (Gastos): só saneia o número. */
+function repararLinhaGenerica(linha, cols, numericas) {
+  return cols.map(function (col, i) {
+    return numericas[col] ? dinheiroFolha(linha[i]) : linha[i];
+  });
 }
 
 function booleano(v) {
@@ -700,9 +888,9 @@ function limparConfig(config) {
 
 function lerVouchers() {
   return ultimosPorId(registros('Vouchers')).map(function (v) {
-    var total = Math.max(0, parseNumeroGs(v.total));
-    var entrada = Math.max(0, parseNumeroGs(v.entrada));
-    var desconto = Math.max(0, parseNumeroGs(v.desconto));
+    var total = dinheiroFolha(v.total);
+    var entrada = dinheiroFolha(v.entrada);
+    var desconto = dinheiroFolha(v.desconto);
     var pessoas = Math.max(1, Math.round(parseNumeroGs(v.pessoas))) || 1;
     // Se a entrada ficou maior que o total (edição manual na planilha ou
     // dado legado), eleva o total para não deixar o PDF com "R$ 0,00" no
@@ -716,7 +904,12 @@ function lerVouchers() {
     // e sobrescrito na primeira gravação, dando a impressão de que a
     // planilha "não era respeitada".
     var bruto = v.aReceber === null || v.aReceber === undefined ? '' : String(v.aReceber).trim();
-    var aReceberFolha = bruto ? Math.max(0, parseNumeroGs(bruto)) : null;
+    var aReceberLido = bruto ? Math.max(0, parseNumeroGs(bruto)) : null;
+    // Acima do teto NÃO é valor negociado: é lixo de versão antiga/digitação
+    // (ex.: "10.000.000.000.000.000" no lugar de 1000) e volta a valer o
+    // cálculo automático — era isso que fazia o painel somar quatrilhões em
+    // vez dos pendentes da planilha.
+    var aReceberFolha = aReceberLido !== null && aReceberLido <= TETO_DINHEIRO ? aReceberLido : null;
     var temManual = aReceberFolha !== null && Math.abs(aReceberFolha - calculado) > 0.005;
     var saida = {
       id: v.id,
@@ -784,7 +977,7 @@ function salvarVoucher(entrada) {
 
 function lerGastos() {
   return ultimosPorId(registros('Gastos')).map(function (g) {
-    return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: Math.max(0, parseNumeroGs(g.valor)), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
+    return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: dinheiroFolha(g.valor), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
   });
 }
 

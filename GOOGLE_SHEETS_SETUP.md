@@ -80,6 +80,19 @@ Por isso o script informa a própria versão ao painel. Quando ela está atrás 
 
 Para atualizar: cole o `Code.gs` novo e vá em **Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar**. Depois **saia e entre novamente** no painel.
 
+### Valores errados na planilha (v14)
+
+Se a coluna `aReceber` mostra valores absurdos (ex.: `10.000.000.000.000.000` no lugar de `1000`) ou a coluna `total` aparece com formato de **data** em vez de número, atualize o `Code.gs` e reimplante como descrito acima. Na **primeira requisição da versão nova**, a planilha é reparada automaticamente:
+
+- as colunas de dinheiro (`total`, `desconto`, `entrada`, `aReceber`, `pessoas` em `Vouchers` e `valor` em `Gastos`) voltam para o formato **Automático**;
+- os valores passam a ser gravados como **número de verdade** (antes iam como texto, que não entra em somas da própria planilha);
+- um `aReceber` acima de R$ 100 milhões é considerado lixo e **volta para o cálculo automático** (total − desconto − entrada) — um valor manual normal continua respeitado;
+- linhas duplicadas com o mesmo `id` são removidas, ficando apenas a mais recente (a que o painel exibe).
+
+Para refazer essa limpeza a qualquer momento sem reimplantar, execute a função **`repararPlanilha`** no editor do Apps Script (botão ▶ Executar).
+
+Enquanto o script não é reimplantado, o site já se protege sozinho: valores absurdos vindos da planilha são ignorados na exibição e o "a receber" volta a mostrar o cálculo automático — mas a planilha só é realmente corrigida com a reimplantação.
+
 ### Onde colar a URL
 
 **Opção A — variável do GitHub (recomendada)**
