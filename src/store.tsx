@@ -10,7 +10,7 @@ import {
 import type { Config, GastoOperacional, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
 import { api, modoLocal, versaoDesatualizada } from "@/api";
 import { CONFIG_PADRAO } from "@/data/seed";
-import { normalizarStatus, uid } from "@/lib/utils";
+import { normalizarVoucher, parseNumero, uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
 
@@ -194,10 +194,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .dados(sessao.token)
       .then((d) => {
         if (cancelado) return;
-        // Status fora da lista (ex.: "confirmado" de versões antigas) é
-        // normalizado para "pendente" para a tela nunca quebrar.
-        setVouchers((d.vouchers ?? []).map((v) => ({ ...v, status: normalizarStatus(v.status) })));
-        setGastos(d.gastos ?? []);
+        // Normaliza cada voucher na carga: status desconhecido vira "pendente",
+        // valores numéricos em formato "R$ 1.234,56" (digitados direto na
+        // planilha) viram números, e vouchers antigos com entrada > total
+        // são ajustados para que o PDF não saia com total/a receber zerados.
+        setVouchers((d.vouchers ?? []).map(normalizarVoucher));
+        // Mesma proteção para o valor dos gastos.
+        setGastos(
+          (d.gastos ?? []).map((g) => ({ ...g, valor: Math.max(0, parseNumero(g.valor)) })),
+        );
         setConfig({ ...CONFIG_PADRAO, ...(d.config ?? {}) });
         // Uma implantação antiga responde normalmente, mas descarta os campos
         // novos ao gravar. Avisamos para o texto não sumir sem explicação.

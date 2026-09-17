@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { StoreProvider, useStore } from "@/store";
 import { Icon, type IconName } from "@/components/Icon";
-import { LogoMarca, LogoIcon } from "@/components/Logo";
+import { LogoMarca } from "@/components/Logo";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Agenda from "@/pages/Agenda";
