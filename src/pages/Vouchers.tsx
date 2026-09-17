@@ -198,9 +198,9 @@ export default function Vouchers() {
       total: vouchers.length,
       pessoas: ativos.reduce((s, v) => s + totalPessoas(v), 0),
       faturado: ativos.reduce((s, v) => s + totalComDesconto(v), 0),
-      receber: ativos
-        .filter((v) => v.status !== "concluido")
-        .reduce((s, v) => s + aReceber(v), 0),
+      // Conta tudo que ainda falta receber, inclusive de passeios já
+      // realizados (concluídos) — o passeio acontecer não quita o saldo.
+      receber: ativos.reduce((s, v) => s + aReceber(v), 0),
     };
   }, [vouchers]);
 
@@ -236,21 +236,33 @@ export default function Vouchers() {
    * Atualiza o formulário e, enquanto o total não foi digitado à mão,
    * recalcula o "Valor total" como a SOMA de todos os passeios × pessoas.
    * Antes o total era sobrescrito só com o preço do último passeio escolhido.
+   * Segurança: se a soma der 0 (passeio sem preço cadastrado / nome diferente
+   * do serviço), mantém o total que já estava — NUNCA zera um valor
+   * negociado por causa do recálculo automático.
    */
   const atualizar = (p: Partial<Voucher>) =>
     setForm((f) => {
       if (!f) return f;
       const novo = { ...f, ...p };
-      return totalManual ? novo : { ...novo, total: totalSugerido(novo, config.servicos) };
+      if (totalManual) return novo;
+      const sugerido = totalSugerido(novo, config.servicos);
+      return sugerido > 0 ? { ...novo, total: sugerido } : novo;
     });
 
-  /** Abre o formulário (novo ou edição) já sabendo se o total é automático ou manual. */
+  /**
+   * Abre o formulário (novo ou edição) já sabendo se o total é automático ou
+   * manual. Se o voucher está com total zerado mas a soma dos passeios dá um
+   * valor, preenche com a soma — o lápis "passa a preencher" em vez de abrir
+   * mostrando R$ 0,00.
+   */
   const abrirForm = (v: Voucher) => {
-    setForm(v);
+    const sugerido = totalSugerido(v, config.servicos);
+    const base = v.total > 0 ? v : { ...v, total: sugerido };
+    setForm(base);
     setErro("");
     // Se o total salvo é exatamente a soma dos passeios, continua automático;
     // se foi negociado/digitado (diferente da soma), fica como está.
-    setTotalManual(v.total !== totalSugerido(v, config.servicos));
+    setTotalManual(base.total !== sugerido);
   };
 
   const setCliente = (i: number, valor: string) => {
@@ -1067,9 +1079,34 @@ export default function Vouchers() {
                   aoMudar={(n) => set({ entrada: n })}
                 />
               </Campo>
-              <Campo rotulo="A receber">
-                <div className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm font-extrabold text-amber-700 ring-1 ring-amber-200">
-                  {brl(aReceber(form))}
+              <Campo
+                rotulo="A receber (R$)"
+                dica={
+                  form.aReceber === undefined || form.aReceber === null
+                    ? "automático: total − desconto − entrada (digite para ajustar)"
+                    : `valor manual — pelo cálculo seria ${brl(
+                        Math.max(0, totalComDesconto(form) - parseNumero(form.entrada)),
+                      )}`
+                }
+              >
+                <div className="flex gap-2">
+                  <EntradaNumero
+                    min={0}
+                    step="0.01"
+                    valor={aReceber(form)}
+                    aoMudar={(n) => set({ aReceber: n })}
+                    className="bg-amber-50 font-extrabold text-amber-700 ring-amber-200"
+                  />
+                  {form.aReceber !== undefined && form.aReceber !== null && (
+                    <button
+                      type="button"
+                      title="Voltar para o cálculo automático (total − desconto − entrada)"
+                      onClick={() => set({ aReceber: undefined })}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-3 text-xs font-bold whitespace-nowrap text-amber-700 transition hover:bg-amber-100"
+                    >
+                      <Icon name="refresh" className="size-3.5" /> Auto
+                    </button>
+                  )}
                 </div>
               </Campo>
               <Campo rotulo="Forma de pagamento" className="sm:col-span-2">

@@ -61,6 +61,13 @@ export interface Voucher {
   /** Valor do desconto — em % (percentual) ou em R$ (fixo). 0/ausente = sem desconto. */
   desconto?: number;
   entrada: number;
+  /**
+   * Valor a receber MANUAL (opcional). Quando definido (inclusive 0), vale
+   * mais que o cálculo automático "total − desconto − entrada" — é o valor
+   * negociado digitado no formulário ou direto na coluna "aReceber" da
+   * planilha. Ausente/null = calcular automaticamente.
+   */
+  aReceber?: number | null;
   formaPagamento: string;
   observacoes: string;
   status: StatusVoucher;

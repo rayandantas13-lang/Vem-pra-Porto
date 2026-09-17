@@ -11,7 +11,7 @@ import {
 import type { Config, GastoOperacional, ID, Sessao, StatusVoucher, Usuario, Voucher } from "@/types";
 import { api, modoLocal, versaoDesatualizada } from "@/api";
 import { CONFIG_PADRAO } from "@/data/seed";
-import { normalizarVoucher, parseNumero, uid } from "@/lib/utils";
+import { deduplicarPorId, normalizarVoucher, parseNumero, uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
 const DADOS_CACHE_KEY = "vempraporto.cache.dados";
@@ -190,7 +190,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessao, setSessao] = useState<Sessao | null>(sessaoInicial);
   // Se já há sessão válida no localStorage, não bloqueia a tela inteira:
   // a validação no servidor é feita em background.
-  const [verificando, setVerificando] = useState(false);
+  const [verificando] = useState(false);
   // Se já temos cache, não bloqueamos o painel (carregando = false)
   const [carregando, setCarregando] = useState(() => !cacheInicial && !!sessaoInicial);
   const [sincronizando, setSincronizando] = useState(false);
@@ -209,7 +209,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const notificar = useCallback((msg: string, tone: Toast["tone"] = "ok") => {
     const id = uid();
     setToasts((t) => [...t, { id, msg, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3600);
+    // Erro de salvamento fica na tela por mais tempo: é a única pista de que
+    // o valor NÃO foi gravado (implantação antiga recusando, por exemplo) —
+    // com 3,6s a pessoa não via e achava que o valor tinha "sumido sozinho".
+    setTimeout(
+      () => setToasts((t) => t.filter((x) => x.id !== id)),
+      tone === "erro" ? 9000 : 3600,
+    );
   }, []);
 
   // Sincronização em tempo real entre abas / janelas (BroadcastChannel + storage event)
@@ -345,8 +351,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .dados(sessao.token)
       .then((d) => {
         if (cancelado) return;
-        const vouchersNorm = (d.vouchers ?? []).map(normalizarVoucher);
-        const gastosNorm = (d.gastos ?? []).map((g) => ({
+        const vouchersNorm = deduplicarPorId(d.vouchers ?? []).map(normalizarVoucher);
+        const gastosNorm = deduplicarPorId(d.gastos ?? []).map((g) => ({
           ...g,
           valor: Math.max(0, parseNumero(g.valor)),
         }));
@@ -426,8 +432,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Se a resposta de login já trouxe os dados, aplica direto (0ms de tela de carregamento!)
         if (s.dados) {
           dadosCarregadosNoLoginRef.current = true;
-          const vouchersNorm = (s.dados.vouchers ?? []).map(normalizarVoucher);
-          const gastosNorm = (s.dados.gastos ?? []).map((g) => ({
+          const vouchersNorm = deduplicarPorId(s.dados.vouchers ?? []).map(normalizarVoucher);
+          const gastosNorm = deduplicarPorId(s.dados.gastos ?? []).map((g) => ({
             ...g,
             valor: Math.max(0, parseNumero(g.valor)),
           }));

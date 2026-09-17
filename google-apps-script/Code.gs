@@ -37,7 +37,19 @@ var SEGURANCA = {
   // v10: alta performance — cache da estrutura do banco (evita re-verificar
   //      todas as 6 abas em cada requisição) e entrega dos dados no próprio
   //      login (elimina a segunda chamada lenta ao entrar).
-  versao: '10',
+  // v11: a coluna "aReceber" da planilha passa a ser respeitada: quando o
+  //      valor gravado nela difere do cálculo automático (total − desconto −
+  //      entrada), ele é tratado como valor manual (negociado) e devolvido ao
+  //      painel/PDF em vez de ser ignorado e sobrescrito. parseNumeroGs
+  //      também entende "1.200" (ponto de milhar sem vírgula) como 1200.
+  // v12: linhas duplicadas com o mesmo id (gravadas por versões antigas ou
+  //      edições manuais) não confundem mais o painel: na leitura vale a
+  //      ÚLTIMA linha (a mais recente) e, ao salvar, as cópias fantasmas são
+  //      removidas da aba.
+  // v13: diagnóstico informa o NOME e a URL da planilha conectada ao script
+  //      (status e GET) — para descobrir na hora quando se está editando uma
+  //      planilha e o Apps Script lendo outra.
+  versao: '13',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -94,7 +106,23 @@ var CONFIG_PADRAO = {
  * aqui, a implantação está desatualizada ou não está aberta a "Qualquer pessoa".
  */
 function doGet() {
-  return responder({ ok: true, data: { servico: 'Controle de Vouchers', versao: SEGURANCA.versao } });
+  return responder({ ok: true, data: { servico: 'Controle de Vouchers', versao: SEGURANCA.versao, planilha: infoPlanilha() } });
+}
+
+/**
+ * Nome e URL da planilha à qual este script está conectado. O Apps Script é
+ * "presado" à planilha onde foi criado; se a pessoa edita outra planilha (uma
+ * cópia, por exemplo), os valores nunca chegam ao site. Exibir isso no
+ * diagnóstico revela o problema na hora. Não é dado sensível: é a planilha
+ * do próprio dono do sistema.
+ */
+function infoPlanilha() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    return ss ? { nome: ss.getName(), url: ss.getUrl() } : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function doPost(e) {
@@ -126,7 +154,7 @@ function processar(req) {
     var acao = texto(req.acao, 40, true, 'Ação');
 
     // Somente estas três ações existem antes da autenticação.
-    if (acao === 'status') return ok({ temAdmin: temAdmin(), versao: SEGURANCA.versao });
+    if (acao === 'status') return ok({ temAdmin: temAdmin(), versao: SEGURANCA.versao, planilha: infoPlanilha() });
     if (acao === 'criarPrimeiroAdmin') return ok(criarPrimeiroAdmin(req));
     if (acao === 'entrar') return ok(entrar(req));
 
@@ -406,10 +434,15 @@ function gravar(nome, registro) {
   var idx = cols.indexOf(chaveCol);
   var ultima = s.getLastRow();
   var linhas = ultima > 1 ? s.getRange(2, 1, ultima - 1, cols.length).getValues() : [];
-  var alvo = -1;
+  // Todas as linhas com este id: a ÚLTIMA é a vigente (é ela que o painel
+  // mostra); se houver cópias fantasmas de versões antigas, elas são
+  // apagadas agora para o banco não ficar com dado duplicado.
+  var alvos = [];
   for (var i = 0; i < linhas.length; i++) {
-    if (lerCelula(linhas[i][idx]) === chave) { alvo = i + 2; break; }
+    if (lerCelula(linhas[i][idx]) === chave) alvos.push(i + 2);
   }
+  var alvo = alvos.length ? alvos[alvos.length - 1] : -1;
+  for (var d = alvos.length - 2; d >= 0; d--) s.deleteRow(alvos[d]);
 
   var valores = cols.map(function (col) { return valorCelula(registro[col]); });
   if (alvo === -1) s.appendRow(valores);
@@ -430,12 +463,34 @@ function remover(nome, id) {
   return null;
 }
 
+/**
+ * Mantém apenas a ocorrência MAIS RECENTE de cada id, preservando a ordem.
+ * Versões antigas e edições manuais podem deixar duas linhas com o mesmo id
+ * na aba; sem isso o painel mostrava a linha VELHA (com valores zerados ou
+ * trocados) no lugar da que a pessoa acabou de corrigir na planilha.
+ */
+function ultimosPorId(lista) {
+  var posicao = {};
+  var saida = [];
+  for (var i = 0; i < lista.length; i++) {
+    var id = String(lista[i].id);
+    if (posicao[id] === undefined) {
+      posicao[id] = saida.length;
+      saida.push(lista[i]);
+    } else {
+      saida[posicao[id]] = lista[i];
+    }
+  }
+  return saida;
+}
+
 function porId(nome, id) {
   var lista = registros(nome);
+  var achado = null;
   for (var i = 0; i < lista.length; i++) {
-    if (String(lista[i].id) === String(id)) return lista[i];
+    if (String(lista[i].id) === String(id)) achado = lista[i];
   }
-  return null;
+  return achado;
 }
 
 function booleano(v) {
@@ -454,11 +509,20 @@ function parseNumeroGs(v) {
   if (typeof v === 'boolean') return v ? 1 : 0;
   var str = String(v).trim();
   if (!str) return 0;
+  var semMoeda = str.replace(/r\$\s?/i, '').trim();
+  if (!semMoeda) return 0;
+  // Sem vírgula e com pontos separando grupos de 3 dígitos ("1.200",
+  // "12.345.678"): no padrão BR de dinheiro isso é milhar, não decimal —
+  // Number("1.200") devolveria 1.2 e o valor da planilha viraria R$ 1,20.
+  if (/^\d{1,3}(\.\d{3})+$/.test(semMoeda)) {
+    var milhar = Number(semMoeda.replace(/\./g, ''));
+    return isFinite(milhar) ? milhar : 0;
+  }
   // Já é numérico (aceita ponto como decimal, sem vírgula de milhar)?
-  var direto = Number(str);
+  var direto = Number(semMoeda);
   if (isFinite(direto)) return direto;
   // Formato BR: "R$ 1.234,56" → 1234.56
-  var limpo = str.replace(/r\$\s?/i, '').replace(/\./g, '').replace(/,/g, '.');
+  var limpo = semMoeda.replace(/\./g, '').replace(/,/g, '.');
   var n = Number(limpo);
   return isFinite(n) ? n : 0;
 }
@@ -576,6 +640,12 @@ function limparVoucher(v) {
   var desconto = numero(v.desconto || 0, 0, 100000000, 'Desconto');
   if (desconto > 0 && tipoDesconto === 'percentual' && desconto > 100)
     throw new Error('Desconto percentual não pode passar de 100%.');
+  // "A receber" manual: presente apenas quando o painel definiu um valor
+  // próprio (ou carregou um valor manual da planilha). null/ausente mantém o
+  // cálculo automático (total − desconto − entrada) na hora de gravar.
+  var aReceberManual = null;
+  if (v.aReceber !== undefined && v.aReceber !== null)
+    aReceberManual = numero(v.aReceber, 0, 100000000, 'Valor a receber');
 
   return {
     id: identificador(v.id, 'Voucher'),
@@ -590,6 +660,7 @@ function limparVoucher(v) {
     tipoDesconto: tipoDesconto,
     desconto: desconto,
     entrada: entrada,
+    aReceber: aReceberManual,
     formaPagamento: texto(v.formaPagamento, 200, false, 'Forma de pagamento'),
     observacoes: texto(v.observacoes, 2000, false, 'Observações'),
     status: status,
@@ -628,7 +699,7 @@ function limparConfig(config) {
 /* ---------------- Vouchers ---------------- */
 
 function lerVouchers() {
-  return registros('Vouchers').map(function (v) {
+  return ultimosPorId(registros('Vouchers')).map(function (v) {
     var total = Math.max(0, parseNumeroGs(v.total));
     var entrada = Math.max(0, parseNumeroGs(v.entrada));
     var desconto = Math.max(0, parseNumeroGs(v.desconto));
@@ -637,7 +708,17 @@ function lerVouchers() {
     // dado legado), eleva o total para não deixar o PDF com "R$ 0,00" no
     // total/a receber enquanto a entrada aparece com valor.
     if (entrada > total) total = entrada;
-    return {
+    var tipoDesconto = v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual';
+    var calculado = Math.max(0, total - entrada - descontoValorGs(total, tipoDesconto, desconto));
+    // Valor digitado/ajustado à mão na coluna "aReceber" da planilha: se ele
+    // difere do cálculo automático, é um valor negociado e segue para o
+    // painel/PDF como está — antes era ignorado (o site sempre recalculava)
+    // e sobrescrito na primeira gravação, dando a impressão de que a
+    // planilha "não era respeitada".
+    var bruto = v.aReceber === null || v.aReceber === undefined ? '' : String(v.aReceber).trim();
+    var aReceberFolha = bruto ? Math.max(0, parseNumeroGs(bruto)) : null;
+    var temManual = aReceberFolha !== null && Math.abs(aReceberFolha - calculado) > 0.005;
+    var saida = {
       id: v.id,
       codigo: v.codigo,
       clientes: jsonSeguro(v.clientes, v.clientes ? [v.clientes] : []),
@@ -647,7 +728,7 @@ function lerVouchers() {
       contatoExtra: v.contatoExtra,
       passeios: jsonSeguro(v.passeios, []),
       total: total,
-      tipoDesconto: v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual',
+      tipoDesconto: tipoDesconto,
       desconto: desconto,
       entrada: entrada,
       formaPagamento: v.formaPagamento,
@@ -657,6 +738,8 @@ function lerVouchers() {
       status: STATUS_VALIDOS.indexOf(v.status) !== -1 ? v.status : 'pendente',
       criadoEm: v.criadoEm
     };
+    if (temManual) saida.aReceber = aReceberFolha;
+    return saida;
   });
 }
 
@@ -664,6 +747,14 @@ function salvarVoucher(entrada) {
   var v = limparVoucher(entrada);
   var servicos = v.passeios.map(function (p) { return p.nome; }).filter(String).join(' + ');
   var datas = v.passeios.map(function (p) { return p.data; }).filter(String).sort().join(' | ');
+
+  // Sem valor manual, a coluna "aReceber" guarda o cálculo automático; com
+  // valor manual (digitado no painel ou direto na planilha), preserva o que
+  // a pessoa definiu — senão qualquer gravação sobrescrevia o valor dela.
+  var aReceberColuna =
+    v.aReceber !== undefined && v.aReceber !== null
+      ? v.aReceber
+      : Math.max(0, v.total - v.entrada - descontoValorGs(v.total, v.tipoDesconto, v.desconto));
 
   gravar('Vouchers', {
     id: v.id,
@@ -680,7 +771,7 @@ function salvarVoucher(entrada) {
     tipoDesconto: v.tipoDesconto,
     desconto: v.desconto,
     entrada: v.entrada,
-    aReceber: Math.max(0, v.total - v.entrada - descontoValorGs(v.total, v.tipoDesconto, v.desconto)),
+    aReceber: aReceberColuna,
     formaPagamento: v.formaPagamento,
     observacoes: v.observacoes,
     status: v.status,
@@ -692,7 +783,7 @@ function salvarVoucher(entrada) {
 /* ---------------- Gastos operacionais ---------------- */
 
 function lerGastos() {
-  return registros('Gastos').map(function (g) {
+  return ultimosPorId(registros('Gastos')).map(function (g) {
     return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: Math.max(0, parseNumeroGs(g.valor)), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
   });
 }

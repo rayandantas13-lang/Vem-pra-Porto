@@ -362,7 +362,15 @@ export function parseNumero(v: unknown): number {
   if (v === null || v === undefined) return 0;
   const str = String(v).trim();
   if (!str) return 0;
-  const semMoeda = str.replace(/^R\$\s?/i, "");
+  const semMoeda = str.replace(/^R\$\s?/i, "").trim();
+  if (!semMoeda) return 0;
+  // Sem vírgula e com pontos separando grupos de 3 dígitos ("1.200",
+  // "12.345.678"): em dinheiro no padrão BR isso é milhar, não decimal —
+  // Number("1.200") devolveria 1.2 e o valor digitado viraria R$ 1,20.
+  if (/^\d{1,3}(\.\d{3})+$/.test(semMoeda)) {
+    const milhar = Number(semMoeda.replace(/\./g, ""));
+    return Number.isFinite(milhar) ? milhar : 0;
+  }
   // Formato direto ("300", "600.5"): se já for número válido, não mexe mais.
   const direto = Number(semMoeda);
   if (Number.isFinite(direto)) return direto;
@@ -386,9 +394,18 @@ export const valorDesconto = (v: Voucher) => {
 export const totalComDesconto = (v: Voucher) =>
   Math.max(0, parseNumero(v.total) - valorDesconto(v));
 
-/** Valor a receber (total com desconto − entrada); nunca negativo. */
-export const aReceber = (v: Voucher) =>
-  Math.max(0, totalComDesconto(v) - parseNumero(v.entrada));
+/**
+ * Valor a receber do voucher.
+ * Se existir um valor MANUAL (digitado no formulário ou na coluna "aReceber"
+ * da planilha — inclusive 0), ele vale mais que o cálculo automático: é o
+ * caso de valores negociados que não fecham em "total − desconto − entrada".
+ * Sem valor manual, calcula: total com desconto − entrada (nunca negativo).
+ */
+export const aReceber = (v: Voucher) => {
+  if (typeof v.aReceber === "number" && Number.isFinite(v.aReceber))
+    return Math.max(0, v.aReceber);
+  return Math.max(0, totalComDesconto(v) - parseNumero(v.entrada));
+};
 
 export const totalPessoas = (v: Voucher) =>
   Math.max(1, Math.round(parseNumero(v.pessoas))) ||
@@ -416,6 +433,13 @@ export function normalizarVoucher(v: Voucher): Voucher {
   let total = Math.max(0, parseNumero(v.total));
   const entrada = Math.max(0, parseNumero(v.entrada));
   const desconto = Math.max(0, parseNumero(v.desconto));
+  // "A receber" manual (digitado na planilha ou no formulário) é preservado;
+  // se vier como texto ("200", "R$ 200,00") é convertido para número.
+  // Ausente/null = automático (o cálculo acontece na função aReceber).
+  const aReceberManual =
+    v.aReceber === undefined || v.aReceber === null
+      ? undefined
+      : Math.max(0, parseNumero(v.aReceber));
 
   // Calcula o total com desconto e garante que ele não fique abaixo da entrada.
   // Vouchers antigos/planilha poderiam ter entrada > total (ex.: total=0 por dado
@@ -433,9 +457,32 @@ export function normalizarVoucher(v: Voucher): Voucher {
     total,
     entrada,
     desconto,
+    aReceber: aReceberManual,
     tipoDesconto: v.tipoDesconto === "fixo" ? "fixo" : "percentual",
     status: normalizarStatus(v.status),
   };
+}
+
+/**
+ * Mantém apenas a ocorrência MAIS RECENTE de cada id, preservando a ordem.
+ * A planilha pode conter linhas duplicadas com o mesmo id (gravadas por
+ * versões antigas do código ou edições manuais); sem isso o painel mostra a
+ * linha velha — com valores zerados/trocados — no lugar da corrigida.
+ * Mesma regra do backend: a última linha vence.
+ */
+export function deduplicarPorId<T extends { id: string }>(lista: T[]): T[] {
+  const pos = new Map<string, number>();
+  const saida: T[] = [];
+  lista.forEach((item) => {
+    const i = pos.get(item.id);
+    if (i === undefined) {
+      pos.set(item.id, saida.length);
+      saida.push(item);
+    } else {
+      saida[i] = item;
+    }
+  });
+  return saida;
 }
 
 /** Serviço cadastrado com esse nome (ignora maiúsculas/acentos/espaços nas pontas). */

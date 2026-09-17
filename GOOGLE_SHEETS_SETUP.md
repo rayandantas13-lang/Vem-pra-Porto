@@ -19,7 +19,7 @@ Ao criar um voucher você informa:
 - **Nº de pessoas** — preenchido sozinho conforme os nomes
 - **Hotel**, **WhatsApp** e **outros contatos**
 - **Passeios** — um ou vários, cada um com serviço, data, hora e ponto de encontro
-- **Valor total**, **desconto** (em % ou R$, opcional) e **entrada** — o "a receber" é calculado automaticamente
+- **Valor total**, **desconto** (em % ou R$, opcional) e **entrada** — o "a receber" é calculado automaticamente (total − desconto − entrada), mas também pode ser digitado à mão no formulário ou direto na coluna **aReceber** da planilha: um valor diferente do cálculo é tratado como valor manual e respeitado pelo site e pelo PDF
 - **Forma de pagamento** e **observações**
 
 O envio é sempre **PDF + mensagem curta**, sem número fixo: o WhatsApp abre e você escolhe para qual contato mandar.
@@ -68,7 +68,7 @@ Sem conectar o Google Sheets, o sistema abre em **modo local** com vouchers fict
 
 Abas criadas automaticamente: `Usuarios`, `Vouchers`, `Config`, `Sessoes`, `Auditoria`.
 
-Na aba `Vouchers`, além dos dados brutos, as colunas **servicos**, **datas** e **aReceber** são preenchidas sozinhas para você conseguir ler e filtrar direto na planilha.
+Na aba `Vouchers`, além dos dados brutos, as colunas **servicos**, **datas** e **aReceber** são preenchidas sozinhas para você conseguir ler e filtrar direto na planilha. Se você editar a coluna **aReceber** com um valor diferente do cálculo automático (total − desconto − entrada), esse valor vira o "a receber" oficial do voucher no site e no PDF — e não é sobrescrito ao salvar. Valores digitados em formato brasileiro (ex.: `R$ 1.234,56`, `1.200` ou `600,50`) também são entendidos corretamente nas colunas `total`, `entrada`, `desconto` e `aReceber`.
 
 ### Sempre que o `Code.gs` mudar, reimplante
 
