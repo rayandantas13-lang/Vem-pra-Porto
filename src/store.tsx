@@ -209,7 +209,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const notificar = useCallback((msg: string, tone: Toast["tone"] = "ok") => {
     const id = uid();
     setToasts((t) => [...t, { id, msg, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3600);
+    // Erro de salvamento fica na tela por mais tempo: é a única pista de que
+    // o valor NÃO foi gravado (implantação antiga recusando, por exemplo) —
+    // com 3,6s a pessoa não via e achava que o valor tinha "sumido sozinho".
+    setTimeout(
+      () => setToasts((t) => t.filter((x) => x.id !== id)),
+      tone === "erro" ? 9000 : 3600,
+    );
   }, []);
 
   // Sincronização em tempo real entre abas / janelas (BroadcastChannel + storage event)
