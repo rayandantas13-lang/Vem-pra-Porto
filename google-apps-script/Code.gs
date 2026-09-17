@@ -31,7 +31,10 @@ var SEGURANCA = {
   // v7: a ação "eu" passa a devolver { usuario, expiraEm } para o painel
   //     conseguir renovar a sessão sem novo login.
   // v8: remoção da biometria — login somente com usuário e senha.
-  versao: '8',
+  // v9: parseNumeroGs — lê números em formato BR ("R$ 1.234,56") vindos de
+  //     edição manual direto na planilha, para o PDF não sair com total/
+  //     a receber zerados.
+  versao: '9',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -426,6 +429,27 @@ function booleano(v) {
   return String(v).toLowerCase() === 'true' || String(v) === '1';
 }
 
+/**
+ * Converte o valor de uma célula da planilha em número de forma defensiva.
+ * Aceita "1234.56", "1.234,56", "R$ 1.234,56" etc. Devolve 0 se não der.
+ * Isso evita que um voucher com valores digitados à mão na planilha chegue ao
+ * painel como NaN e faça o PDF sair com total/a receber zerados.
+ */
+function parseNumeroGs(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  var str = String(v).trim();
+  if (!str) return 0;
+  // Já é numérico (aceita ponto como decimal, sem vírgula de milhar)?
+  var direto = Number(str);
+  if (isFinite(direto)) return direto;
+  // Formato BR: "R$ 1.234,56" → 1234.56
+  var limpo = str.replace(/r\$\s?/i, '').replace(/\./g, '').replace(/,/g, '.');
+  var n = Number(limpo);
+  return isFinite(n) ? n : 0;
+}
+
 function jsonSeguro(valor, padrao) {
   try {
     var v = JSON.parse(valor || '');
@@ -452,7 +476,9 @@ function identificador(valor, rotulo) {
 }
 
 function numero(valor, minimo, maximo, rotulo) {
-  var n = Number(valor);
+  // Aceita número puro OU formato brasileiro ("R$ 1.234,56"), para não dar erro
+  // se alguém copiar/colar um valor com máscara no campo.
+  var n = parseNumeroGs(valor);
   if (!isFinite(n) || n < minimo || n > maximo)
     throw new Error((rotulo || 'Número') + ' inválido.');
   return n;
@@ -590,19 +616,27 @@ function limparConfig(config) {
 
 function lerVouchers() {
   return registros('Vouchers').map(function (v) {
+    var total = Math.max(0, parseNumeroGs(v.total));
+    var entrada = Math.max(0, parseNumeroGs(v.entrada));
+    var desconto = Math.max(0, parseNumeroGs(v.desconto));
+    var pessoas = Math.max(1, Math.round(parseNumeroGs(v.pessoas))) || 1;
+    // Se a entrada ficou maior que o total (edição manual na planilha ou
+    // dado legado), eleva o total para não deixar o PDF com "R$ 0,00" no
+    // total/a receber enquanto a entrada aparece com valor.
+    if (entrada > total) total = entrada;
     return {
       id: v.id,
       codigo: v.codigo,
       clientes: jsonSeguro(v.clientes, v.clientes ? [v.clientes] : []),
-      pessoas: Number(v.pessoas || 1),
+      pessoas: pessoas,
       hotel: v.hotel,
       telefone: v.telefone,
       contatoExtra: v.contatoExtra,
       passeios: jsonSeguro(v.passeios, []),
-      total: Number(v.total || 0),
+      total: total,
       tipoDesconto: v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual',
-      desconto: Number(v.desconto || 0),
-      entrada: Number(v.entrada || 0),
+      desconto: desconto,
+      entrada: entrada,
       formaPagamento: v.formaPagamento,
       observacoes: v.observacoes,
       // Nunca devolve um status desconhecido (ex.: 'confirmado' de versões
@@ -646,7 +680,7 @@ function salvarVoucher(entrada) {
 
 function lerGastos() {
   return registros('Gastos').map(function (g) {
-    return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: Number(g.valor || 0), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
+    return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: Math.max(0, parseNumeroGs(g.valor)), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
   });
 }
 

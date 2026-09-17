@@ -1,6 +1,6 @@
 import type { Config, GastoOperacional, Sessao, Usuario, Voucher } from "@/types";
 import { CONFIG_PADRAO, criarVouchersExemplo } from "@/data/seed";
-import { uid } from "@/lib/utils";
+import { normalizarVoucher, parseNumero, uid } from "@/lib/utils";
 
 /**
  * Banco local (modo demonstração).
@@ -77,6 +77,12 @@ function ler(): BancoLocal {
     p.config = { ...CONFIG_PADRAO, ...(p.config ?? {}) };
     if (!p.vouchers) p.vouchers = [];
     if (!Array.isArray(p.gastos)) p.gastos = [];
+    // Normaliza campos numéricos (total/entrada/desconto) e status de cada
+    // voucher — garante que valores salvos como "R$ 1.234,56" ou vouchers
+    // antigos com entrada > total não gerem PDF com valores zerados.
+    p.vouchers = p.vouchers.map(normalizarVoucher);
+    // Garante que gastos também tenham `valor` numérico (mesmo tratamento).
+    p.gastos = p.gastos.map((g) => ({ ...g, valor: Math.max(0, parseNumero(g.valor)) }));
     gravar(p);
     return p;
   } catch {
@@ -214,7 +220,7 @@ export async function requisicaoLocal<T>(payload: Record<string, unknown>): Prom
 
     case "salvarVoucher": {
       autenticar(db, payload.token);
-      const v = payload.voucher as Voucher;
+      const v = normalizarVoucher(payload.voucher as Voucher);
       const i = db.vouchers.findIndex((x) => x.id === v.id);
       if (i === -1) db.vouchers.unshift(v);
       else db.vouchers[i] = v;

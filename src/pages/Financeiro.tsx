@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "@/store";
-import type { GastoOperacional } from "@/types";
 import { Icon } from "@/components/Icon";
-import { brl, hoje, totalComDesconto, uid } from "@/lib/utils";
+import { brl, hoje, parseNumero, totalComDesconto, uid } from "@/lib/utils";
 
 const PERIODOS = [
   { id: "diario", label: "Diário", dias: 1 }, { id: "semanal", label: "Semanal", dias: 7 },
@@ -36,7 +35,7 @@ export default function Financeiro() {
     const porCategoria = CATEGORIAS.map(c => ({ categoria: c, valor: gastosPeriodo.filter(g => g.categoria === c).reduce((s, g) => s + g.valor, 0) })).filter(x => x.valor > 0).sort((a,b) => b.valor-a.valor);
     return { gastosPeriodo, faturamento, despesas, resultado: faturamento-despesas, porCategoria };
   }, [gastos, vouchers, inicio]);
-  const salvar = async (e: React.FormEvent) => { e.preventDefault(); const valor = Number(form.valor.replace(",", ".")); if (!form.descricao.trim() || !valor || valor <= 0) return; await salvarGasto({ id: uid(), descricao: form.descricao.trim(), categoria: form.categoria, valor, data: form.data, observacao: form.observacao.trim(), voucherId: form.voucherId, criadoEm: new Date().toISOString() }); setForm({ descricao: "", categoria: "Combustível", valor: "", data: hoje(), observacao: "", voucherId: "" }); setAberto(false); };
+  const salvar = async (e: React.FormEvent) => { e.preventDefault(); const valor = parseNumero(form.valor); if (!form.descricao.trim() || !valor || valor <= 0) return; await salvarGasto({ id: uid(), descricao: form.descricao.trim(), categoria: form.categoria, valor, data: form.data, observacao: form.observacao.trim(), voucherId: form.voucherId, criadoEm: new Date().toISOString() }); setForm({ descricao: "", categoria: "Combustível", valor: "", data: hoje(), observacao: "", voucherId: "" }); setAberto(false); };
   const max = Math.max(...dados.porCategoria.map(x => x.valor), 1);
   return <div className="space-y-6">
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 p-6 text-white shadow-xl sm:p-8">

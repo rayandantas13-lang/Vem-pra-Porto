@@ -34,6 +34,7 @@ import {
   mascaraTelefone,
   MENSAGEM_VOUCHER_PADRAO,
   mensagemVoucher,
+  parseNumero,
   saudacaoDoDia,
   uid,
 } from "@/lib/utils";
@@ -115,7 +116,9 @@ export default function Configuracoes() {
     const s: Servico = {
       id: uid(),
       nome: novoServico.nome.trim(),
-      preco: Number(novoServico.preco) || 0,
+      // parseNumero aceita "300" e "300,00" (teclado brasileiro), evitando
+      // que o preço vire zero se a pessoa digitar com vírgula.
+      preco: Math.max(0, parseNumero(novoServico.preco)),
       oQueLevar: "",
       pontoRetorno: "",
       informacoesAdicionais: "",

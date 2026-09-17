@@ -13,6 +13,8 @@ import {
   mensagemVoucher,
   nomesClientes,
   nomesPasseios,
+  normalizarVoucher,
+  parseNumero,
   STATUS_META,
   totalComDesconto,
   totalPessoas,
@@ -73,12 +75,20 @@ class PDFVoucherBuilder {
     this.Y_RODAPE_TEXTO = 291.5 / this.escala;
   }
 
-  /** Aplica escala uniforme ~90%: centraliza na horizontal e ancora no topo. */
+  /**
+   * Aplica escala uniforme (~90% em modo compacto): centraliza horizontalmente
+   * e ancora no topo.
+   *
+   * OBS: antes o `ty` era calculado como `297*(1-s)*k`, que descia o conteúdo
+   * ~30mm e cortava o rodapé (e às vezes o box de pagamento quando o voucher
+   * ia pra 2ª página). Ancora no topo = ty = 0, e a página é dimensionada
+   * com as margens já divididas pela escala.
+   */
   private aplicarEscala() {
     const s = this.escala;
     const k = 72 / 25.4; // pontos por mm
-    const tx = 105 * (1 - s) * k;
-    const ty = 297 * (1 - s) * k;
+    const tx = 105 * (1 - s) * k; // centraliza horizontalmente
+    const ty = 0; // ancora no topo
     this.doc.setCurrentTransformationMatrix(this.doc.Matrix(s, 0, 0, s, tx, ty));
   }
 
@@ -355,8 +365,10 @@ class PDFVoucherBuilder {
 
   // 5. PAGAMENTO (com status do voucher)
   private construirPagamento(voucher: Voucher) {
-    const total = Number(voucher.total) || 0;
-    const entrada = Number(voucher.entrada) || 0;
+    // Usa parseNumero em vez de Number() para não quebrar com "R$ 1.234,56"
+    // caso o voucher chegue aqui sem passar pela normalização prévia.
+    const total = parseNumero(voucher.total);
+    const entrada = parseNumero(voucher.entrada);
     const desconto = valorDesconto(voucher);
     const comDesconto = totalComDesconto(voucher);
     const aReceberValor = aReceber(voucher);
@@ -622,9 +634,13 @@ function enriquecerPasseios(v: Voucher, config: Config): Voucher {
 }
 
 export function gerarPDFVoucher(v: Voucher, config: Config) {
+  // Defesa final: normaliza números/status mesmo se o voucher veio direto da
+  // planilha com "R$ 1.234,56" ou entrada > total — garante que o PDF nunca
+  // saia com total/a receber zerados "só porque a entrada apareceu".
+  const saneado = normalizarVoucher(v);
   // Completa os detalhes do passeio a partir do catálogo antes de renderizar,
   // para o PDF não sair sem "o que levar", ponto de encontro e informações.
-  const enriquecido = enriquecerPasseios(v, config);
+  const enriquecido = enriquecerPasseios(saneado, config);
   const doc = new PDFVoucherBuilder().construir(enriquecido, config);
   // Se não couber em 1 página, reconstrói em modo compacto (tudo em 1 página)
   if (doc.getNumberOfPages() > 1) {

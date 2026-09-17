@@ -88,8 +88,8 @@ export const rotuloRelativo = (s: string) => {
   return dataCurta(s);
 };
 
-export const brl = (n: number) =>
-  (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+export const brl = (n: unknown) =>
+  parseNumero(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const mascaraTelefone = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -345,25 +345,93 @@ export const ordenarPorPeriodo = (lista: Voucher[], periodo: PeriodoVoucher, h =
   return [...lista].sort((a, b) => chave(a).localeCompare(chave(b)));
 };
 
+/**
+ * Converte um vindo do banco/planilha em número de forma defensiva:
+ * - tira ponto de milhar e troca vírgula decimal por ponto (ex.: "1.234,56" → 1234.56);
+ * - ignora prefixos como "R$ ";
+ * - se ainda não der número, devolve 0 em vez de NaN.
+ * Antes o `Number(v.total) || 0` transformava "R$ 300,00" (digitado direto na
+ * planilha) em NaN → 0, e o PDF saía com total e a receber "zerados" enquanto
+ * a entrada continuava certa (pois entrada não teve formatação manual).
+ */
+export function parseNumero(v: unknown): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (v === null || v === undefined) return 0;
+  const str = String(v).trim();
+  if (!str) return 0;
+  const limpo = str
+    .replace(/R\$\s?/i, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".");
+  const n = Number(limpo);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Valor do desconto em reais sobre o total. Aceita desconto em % ou valor fixo (R$). */
 export const valorDesconto = (v: Voucher) => {
-  const total = Number(v.total) || 0;
-  const valor = Number(v.desconto) || 0;
+  const total = parseNumero(v.total);
+  const valor = parseNumero(v.desconto);
   if (valor <= 0) return 0;
   if (v.tipoDesconto === "fixo") return Math.min(valor, total);
   // percentual
   return total * (valor / 100);
 };
 
-/** Total já com o desconto aplicado. */
+/** Total já com o desconto aplicado (nunca negativo). */
 export const totalComDesconto = (v: Voucher) =>
-  Math.max(0, (Number(v.total) || 0) - valorDesconto(v));
+  Math.max(0, parseNumero(v.total) - valorDesconto(v));
 
+/** Valor a receber (total com desconto − entrada); nunca negativo. */
 export const aReceber = (v: Voucher) =>
-  Math.max(0, totalComDesconto(v) - (Number(v.entrada) || 0));
+  Math.max(0, totalComDesconto(v) - parseNumero(v.entrada));
 
 export const totalPessoas = (v: Voucher) =>
-  Number(v.pessoas) || (v.clientes || []).filter((n) => n.trim()).length || 1;
+  Math.max(1, Math.round(parseNumero(v.pessoas))) ||
+  (v.clientes || []).filter((n) => n.trim()).length ||
+  1;
+
+/**
+ * Normaliza um voucher na leitura (banco local ou Google Sheets), garantindo
+ * que os campos numéricos são números válidos e consistentes.
+ * - Campos de dinheiro viram número mesmo se vieram como "R$ 1.234,56" da planilha.
+ * - Se a entrada for maior que o total (voucher antigo antes da validação),
+ *   o total é ajustado para não ficar menor que a entrada — evita PDF com
+ *   "R$ 0,00" no total/a receber só a entrada aparecendo.
+ * - Garante `pessoas ≥ 1`, arrays de clientes/passeios existem e status válido.
+ */
+export function normalizarVoucher(v: Voucher): Voucher {
+  if (!v) return v;
+  const clientes = Array.isArray(v.clientes) ? v.clientes : v.clientes ? [v.clientes] : [];
+  const passeios = Array.isArray(v.passeios) ? v.passeios : [];
+  const pessoas = Math.max(
+    1,
+    Math.round(parseNumero(v.pessoas)) || clientes.filter((n) => n?.trim()).length || 1,
+  );
+
+  let total = Math.max(0, parseNumero(v.total));
+  const entrada = Math.max(0, parseNumero(v.entrada));
+  const desconto = Math.max(0, parseNumero(v.desconto));
+
+  // Calcula o total com desconto e garante que ele não fique abaixo da entrada.
+  // Vouchers antigos/planilha poderiam ter entrada > total (ex.: total=0 por dado
+  // corrompido e entrada=300); se isso acontece o PDF mostrava R$ 0,00 no total
+  // e no "a receber", dando a impressão que os valores "sumiram". Ajustamos o
+  // total para, no mínimo, o valor de entrada já pago, garantindo que o PDF
+  // sempre mostre números coerentes.
+  if (total < entrada) total = entrada;
+
+  return {
+    ...v,
+    clientes,
+    passeios,
+    pessoas,
+    total,
+    entrada,
+    desconto,
+    tipoDesconto: v.tipoDesconto === "fixo" ? "fixo" : "percentual",
+    status: normalizarStatus(v.status),
+  };
+}
 
 /** Serviço cadastrado com esse nome (ignora maiúsculas/acentos/espaços nas pontas). */
 export const servicoPorNome = (servicos: Servico[], nome: string) => {
