@@ -42,7 +42,11 @@ var SEGURANCA = {
   //      entrada), ele é tratado como valor manual (negociado) e devolvido ao
   //      painel/PDF em vez de ser ignorado e sobrescrito. parseNumeroGs
   //      também entende "1.200" (ponto de milhar sem vírgula) como 1200.
-  versao: '11',
+  // v12: linhas duplicadas com o mesmo id (gravadas por versões antigas ou
+  //      edições manuais) não confundem mais o painel: na leitura vale a
+  //      ÚLTIMA linha (a mais recente) e, ao salvar, as cópias fantasmas são
+  //      removidas da aba.
+  versao: '12',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -411,10 +415,15 @@ function gravar(nome, registro) {
   var idx = cols.indexOf(chaveCol);
   var ultima = s.getLastRow();
   var linhas = ultima > 1 ? s.getRange(2, 1, ultima - 1, cols.length).getValues() : [];
-  var alvo = -1;
+  // Todas as linhas com este id: a ÚLTIMA é a vigente (é ela que o painel
+  // mostra); se houver cópias fantasmas de versões antigas, elas são
+  // apagadas agora para o banco não ficar com dado duplicado.
+  var alvos = [];
   for (var i = 0; i < linhas.length; i++) {
-    if (lerCelula(linhas[i][idx]) === chave) { alvo = i + 2; break; }
+    if (lerCelula(linhas[i][idx]) === chave) alvos.push(i + 2);
   }
+  var alvo = alvos.length ? alvos[alvos.length - 1] : -1;
+  for (var d = alvos.length - 2; d >= 0; d--) s.deleteRow(alvos[d]);
 
   var valores = cols.map(function (col) { return valorCelula(registro[col]); });
   if (alvo === -1) s.appendRow(valores);
@@ -435,12 +444,34 @@ function remover(nome, id) {
   return null;
 }
 
+/**
+ * Mantém apenas a ocorrência MAIS RECENTE de cada id, preservando a ordem.
+ * Versões antigas e edições manuais podem deixar duas linhas com o mesmo id
+ * na aba; sem isso o painel mostrava a linha VELHA (com valores zerados ou
+ * trocados) no lugar da que a pessoa acabou de corrigir na planilha.
+ */
+function ultimosPorId(lista) {
+  var posicao = {};
+  var saida = [];
+  for (var i = 0; i < lista.length; i++) {
+    var id = String(lista[i].id);
+    if (posicao[id] === undefined) {
+      posicao[id] = saida.length;
+      saida.push(lista[i]);
+    } else {
+      saida[posicao[id]] = lista[i];
+    }
+  }
+  return saida;
+}
+
 function porId(nome, id) {
   var lista = registros(nome);
+  var achado = null;
   for (var i = 0; i < lista.length; i++) {
-    if (String(lista[i].id) === String(id)) return lista[i];
+    if (String(lista[i].id) === String(id)) achado = lista[i];
   }
-  return null;
+  return achado;
 }
 
 function booleano(v) {
@@ -649,7 +680,7 @@ function limparConfig(config) {
 /* ---------------- Vouchers ---------------- */
 
 function lerVouchers() {
-  return registros('Vouchers').map(function (v) {
+  return ultimosPorId(registros('Vouchers')).map(function (v) {
     var total = Math.max(0, parseNumeroGs(v.total));
     var entrada = Math.max(0, parseNumeroGs(v.entrada));
     var desconto = Math.max(0, parseNumeroGs(v.desconto));
@@ -733,7 +764,7 @@ function salvarVoucher(entrada) {
 /* ---------------- Gastos operacionais ---------------- */
 
 function lerGastos() {
-  return registros('Gastos').map(function (g) {
+  return ultimosPorId(registros('Gastos')).map(function (g) {
     return { id: g.id, descricao: g.descricao, categoria: g.categoria, valor: Math.max(0, parseNumeroGs(g.valor)), data: g.data, observacao: g.observacao || '', criadoEm: g.criadoEm };
   });
 }

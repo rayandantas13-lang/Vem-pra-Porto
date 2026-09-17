@@ -463,6 +463,28 @@ export function normalizarVoucher(v: Voucher): Voucher {
   };
 }
 
+/**
+ * Mantém apenas a ocorrência MAIS RECENTE de cada id, preservando a ordem.
+ * A planilha pode conter linhas duplicadas com o mesmo id (gravadas por
+ * versões antigas do código ou edições manuais); sem isso o painel mostra a
+ * linha velha — com valores zerados/trocados — no lugar da corrigida.
+ * Mesma regra do backend: a última linha vence.
+ */
+export function deduplicarPorId<T extends { id: string }>(lista: T[]): T[] {
+  const pos = new Map<string, number>();
+  const saida: T[] = [];
+  lista.forEach((item) => {
+    const i = pos.get(item.id);
+    if (i === undefined) {
+      pos.set(item.id, saida.length);
+      saida.push(item);
+    } else {
+      saida[i] = item;
+    }
+  });
+  return saida;
+}
+
 /** Serviço cadastrado com esse nome (ignora maiúsculas/acentos/espaços nas pontas). */
 export const servicoPorNome = (servicos: Servico[], nome: string) => {
   const alvo = normalizar((nome || "").trim());
