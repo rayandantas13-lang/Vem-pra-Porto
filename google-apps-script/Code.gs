@@ -34,7 +34,10 @@ var SEGURANCA = {
   // v9: parseNumeroGs — lê números em formato BR ("R$ 1.234,56") vindos de
   //     edição manual direto na planilha, para o PDF não sair com total/
   //     a receber zerados.
-  versao: '9',
+  // v10: alta performance — cache da estrutura do banco (evita re-verificar
+  //      todas as 6 abas em cada requisição) e entrega dos dados no próprio
+  //      login (elimina a segunda chamada lenta ao entrar).
+  versao: '10',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -116,7 +119,7 @@ function responder(payload) {
 
 function processar(req) {
   try {
-    configurarBanco();
+    garantirBancoConfigurado();
     if (!req || Object.prototype.toString.call(req) !== '[object Object]')
       throw new Error('Requisição inválida.');
 
@@ -233,6 +236,14 @@ function mensagemErro(err) {
 
 /* ---------------- Planilha ---------------- */
 
+function garantirBancoConfigurado() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('banco_versao') === SEGURANCA.versao) {
+    return;
+  }
+  configurarBanco();
+}
+
 function configurarBanco() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(ABAS).forEach(function (nome) {
@@ -253,6 +264,8 @@ function configurarBanco() {
       gravar('Config', { chave: chave, valor: CONFIG_PADRAO[chave], atualizadoEm: agora() });
     });
   }
+
+  PropertiesService.getScriptProperties().setProperty('banco_versao', SEGURANCA.versao);
 }
 
 /**
@@ -754,7 +767,7 @@ function criarPrimeiroAdmin(req) {
     gravar('Usuarios', u);
     PropertiesService.getScriptProperties().deleteProperty('SETUP_KEY');
     auditar(u, 'CRIAR', 'Usuario', u.id, 'Administrador principal');
-    return novaSessao(u);
+    return novaSessao(u, true);
   } finally {
     lock.releaseLock();
   }
@@ -794,7 +807,7 @@ function entrar(req) {
   achado.ultimoAcesso = agora();
   gravar('Usuarios', achado);
   auditar(achado, 'ENTRAR', 'Sessao', '', 'Login realizado');
-  return novaSessao(achado);
+  return novaSessao(achado, true);
 }
 
 function chaveLogin(id) {
@@ -823,7 +836,7 @@ function limparFalhasLogin(id) {
   CacheService.getScriptCache().remove(chaveLogin(id));
 }
 
-function novaSessao(usuario) {
+function novaSessao(usuario, incluirDados) {
   var token = aleatorioSeguro();
   var expiraEm = new Date(Date.now() + SEGURANCA.horasSessao * 60 * 60 * 1000).toISOString();
   gravar('Sessoes', {
@@ -835,7 +848,16 @@ function novaSessao(usuario) {
     criadoEm: agora()
   });
   limparSessoes();
-  return { token: token, usuario: publico(usuario), expiraEm: expiraEm };
+  var resposta = { token: token, usuario: publico(usuario), expiraEm: expiraEm };
+  if (incluirDados) {
+    resposta.dados = {
+      vouchers: lerVouchers(),
+      gastos: lerGastos(),
+      config: lerConfig(),
+      versao: SEGURANCA.versao
+    };
+  }
+  return resposta;
 }
 
 function hashToken(token) {

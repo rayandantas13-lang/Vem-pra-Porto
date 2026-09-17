@@ -129,7 +129,16 @@ function novaSessao(db: BancoLocal, u: UsuarioLocal): Sessao {
   const expiraEm = new Date(agora + DURACAO_SESSAO_MS).toISOString();
   db.sessoes = db.sessoes.filter((s) => new Date(s.expiraEm).getTime() > agora);
   db.sessoes.push({ token, usuarioId: u.id, expiraEm, criadoEm });
-  return { token, usuario: publico(u), expiraEm };
+  return {
+    token,
+    usuario: publico(u),
+    expiraEm,
+    dados: {
+      vouchers: db.vouchers,
+      gastos: db.gastos,
+      config: db.config,
+    },
+  };
 }
 
 export function limparBancoLocal() {

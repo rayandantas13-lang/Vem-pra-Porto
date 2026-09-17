@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -13,12 +14,86 @@ import { CONFIG_PADRAO } from "@/data/seed";
 import { normalizarVoucher, parseNumero, uid } from "@/lib/utils";
 
 const SESSAO_KEY = "vempraporto.sessao";
+const DADOS_CACHE_KEY = "vempraporto.cache.dados";
+const BROADCAST_CANAL = "vempraporto_sync_channel";
+
+interface CacheDados {
+  vouchers: Voucher[];
+  gastos: GastoOperacional[];
+  config: Config;
+  versao?: string;
+  salvoEm: number;
+}
+
+type SyncMsg =
+  | {
+      tipo: "DADOS_ATUALIZADOS";
+      vouchers: Voucher[];
+      gastos: GastoOperacional[];
+      config: Config;
+      versao?: string;
+    }
+  | { tipo: "LOGOUT" };
+
+function notificarAbas(msg: SyncMsg) {
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const bc = new BroadcastChannel(BROADCAST_CANAL);
+      bc.postMessage(msg);
+      bc.close();
+    }
+  } catch {
+    // broadcast channel indisponível ou em modo restrito
+  }
+}
+
+/**
+ * Lê os dados em cache do localStorage para exibição imediata (0ms)
+ * ao abrir novas abas ou recarregar a página (estratégia Stale-While-Revalidate).
+ */
+function lerCacheDados(): CacheDados | null {
+  try {
+    const raw = localStorage.getItem(DADOS_CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw) as CacheDados;
+    if (!cache || !Array.isArray(cache.vouchers)) return null;
+    return cache;
+  } catch {
+    return null;
+  }
+}
+
+function gravarCacheDados(dados: {
+  vouchers: Voucher[];
+  gastos: GastoOperacional[];
+  config: Config;
+  versao?: string;
+}) {
+  try {
+    const item: CacheDados = {
+      vouchers: dados.vouchers,
+      gastos: dados.gastos,
+      config: dados.config,
+      versao: dados.versao,
+      salvoEm: Date.now(),
+    };
+    localStorage.setItem(DADOS_CACHE_KEY, JSON.stringify(item));
+  } catch {
+    // quota excedida ou modo anônimo restrito
+  }
+}
+
+function limparCacheDados() {
+  try {
+    localStorage.removeItem(DADOS_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * A sessão é persistida em localStorage para continuar conectado entre abas e
- * reinícios do navegador/celular por até 10 dias. Versões antigas gravavam
- * apenas em sessionStorage (que some ao fechar a aba); migramos esse valor uma
- * única vez para manter quem já estava logado.
+ * reinícios do navegador/celular por até 10 dias.
  */
 function lerSessao(): Sessao | null {
   try {
@@ -51,7 +126,6 @@ function lerSessao(): Sessao | null {
 function gravarSessao(s: Sessao | null) {
   if (s) localStorage.setItem(SESSAO_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSAO_KEY);
-  // Limpa resquícios de versões antigas que usavam sessionStorage.
   sessionStorage.removeItem(SESSAO_KEY);
 }
 
@@ -65,10 +139,10 @@ function ehErroDeSessao(msg: string): boolean {
   return (
     m.includes("sessão expirada") ||
     m.includes("sessao expirada") ||
-    m.includes("sessão") && m.includes("expir") ||
+    (m.includes("sessão") && m.includes("expir")) ||
     m.includes("usuário inativo") ||
     m.includes("usuario inativo") ||
-    m.includes("token") && m.includes("inválid")
+    (m.includes("token") && m.includes("inválid"))
   );
 }
 
@@ -84,9 +158,9 @@ interface Ctx {
   ehAdmin: boolean;
   verificando: boolean;
   carregando: boolean;
+  sincronizando: boolean;
   local: boolean;
   erroCarga: string;
-  /** true quando o Apps Script publicado é anterior ao Code.gs deste site. */
   apiDesatualizada: boolean;
   entrar: (s: Sessao) => void;
   sair: () => Promise<void>;
@@ -110,17 +184,27 @@ interface Ctx {
 const StoreCtx = createContext<Ctx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [sessao, setSessao] = useState<Sessao | null>(lerSessao);
-  const [verificando, setVerificando] = useState(true);
-  const [carregando, setCarregando] = useState(false);
+  const cacheInicial = useMemo(() => lerCacheDados(), []);
+  const sessaoInicial = useMemo(() => lerSessao(), []);
+
+  const [sessao, setSessao] = useState<Sessao | null>(sessaoInicial);
+  // Se já há sessão válida no localStorage, não bloqueia a tela inteira:
+  // a validação no servidor é feita em background.
+  const [verificando, setVerificando] = useState(false);
+  // Se já temos cache, não bloqueamos o painel (carregando = false)
+  const [carregando, setCarregando] = useState(() => !cacheInicial && !!sessaoInicial);
+  const [sincronizando, setSincronizando] = useState(false);
   const [erroCarga, setErroCarga] = useState("");
   const [apiDesatualizada, setApiDesatualizada] = useState(false);
   const [recarga, setRecarga] = useState(0);
 
-  const [vouchers, setVouchers] = useState<Voucher[]>([]);
-  const [gastos, setGastos] = useState<GastoOperacional[]>([]);
-  const [config, setConfig] = useState<Config>(CONFIG_PADRAO);
+  const [vouchers, setVouchers] = useState<Voucher[]>(() => cacheInicial?.vouchers ?? []);
+  const [gastos, setGastos] = useState<GastoOperacional[]>(() => cacheInicial?.gastos ?? []);
+  const [config, setConfig] = useState<Config>(() => cacheInicial?.config ?? CONFIG_PADRAO);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Evita re-buscar dados via api.dados imediatamente se o login já os trouxe
+  const dadosCarregadosNoLoginRef = useRef(false);
 
   const notificar = useCallback((msg: string, tone: Toast["tone"] = "ok") => {
     const id = uid();
@@ -128,18 +212,79 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3600);
   }, []);
 
+  // Sincronização em tempo real entre abas / janelas (BroadcastChannel + storage event)
+  useEffect(() => {
+    const aplicarNovosDados = (novos: {
+      vouchers: Voucher[];
+      gastos: GastoOperacional[];
+      config: Config;
+      versao?: string;
+    }) => {
+      setVouchers(novos.vouchers);
+      setGastos(novos.gastos);
+      setConfig(novos.config);
+      if (novos.versao) {
+        setApiDesatualizada(!modoLocal() && versaoDesatualizada(novos.versao));
+      }
+    };
+
+    let canal: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        canal = new BroadcastChannel(BROADCAST_CANAL);
+        canal.onmessage = (e: MessageEvent<SyncMsg>) => {
+          if (e.data?.tipo === "DADOS_ATUALIZADOS") {
+            aplicarNovosDados(e.data);
+          } else if (e.data?.tipo === "LOGOUT") {
+            setSessao(null);
+            setVouchers([]);
+            setGastos([]);
+            setConfig(CONFIG_PADRAO);
+          }
+        };
+      } catch {
+        canal = null;
+      }
+    }
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === DADOS_CACHE_KEY && e.newValue) {
+        try {
+          const cache = JSON.parse(e.newValue) as CacheDados;
+          if (cache && Array.isArray(cache.vouchers)) {
+            aplicarNovosDados(cache);
+          }
+        } catch {}
+      } else if (e.key === SESSAO_KEY && !e.newValue) {
+        setSessao(null);
+        setVouchers([]);
+        setGastos([]);
+        setConfig(CONFIG_PADRAO);
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      canal?.close();
+    };
+  }, []);
+
+  // Validação/renovação de sessão com o servidor em background
   useEffect(() => {
     const guardada = lerSessao();
-    if (!guardada) {
-      setVerificando(false);
+    if (!guardada) return;
+
+    if (new Date(guardada.expiraEm).getTime() <= Date.now()) {
+      gravarSessao(null);
+      limparCacheDados();
+      setSessao(null);
       return;
     }
+
     api
       .eu(guardada.token)
       .then(({ usuario, expiraEm }) => {
-        // O servidor renova a validade automaticamente a partir da metade do
-        // prazo. Quando devolve a nova data, atualizamos para estender os 10
-        // dias. Se for uma implantação antiga (sem expiraEm), mantemos a atual.
         const nova = {
           ...guardada,
           usuario,
@@ -149,32 +294,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         gravarSessao(nova);
       })
       .catch((err) => {
-        // Só desloga quando o servidor realmente rejeita a sessão. Um erro de
-        // rede ou do Apps Script instável mantém o usuário conectado usando a
-        // última sessão válida salva.
         const msg = err instanceof Error ? err.message : "";
         if (msg && ehErroDeSessao(msg)) {
           gravarSessao(null);
+          limparCacheDados();
           setSessao(null);
         } else {
           setSessao(guardada);
           gravarSessao(guardada);
         }
-      })
-      .finally(() => setVerificando(false));
+      });
   }, []);
 
+  // Observador de expiração de sessão local
   useEffect(() => {
     if (!sessao) return;
 
-    // Não encerramos mais por inatividade. A sessão só cai quando o servidor
-    // diz que expirou (após 10 dias, renováveis pela metade do prazo). Aqui
-    // apenas observamos a data local para cair sozinha quando o prazo total
-    // vencer sem nenhuma renovação.
     const relogio = window.setInterval(() => {
       if (new Date(sessao.expiraEm).getTime() > Date.now()) return;
       void api.sair(sessao.token).catch(() => {});
       gravarSessao(null);
+      limparCacheDados();
       setSessao(null);
       setVouchers([]);
       setConfig(CONFIG_PADRAO);
@@ -184,36 +324,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(relogio);
   }, [sessao, notificar]);
 
+  // Carga de dados (Stale-While-Revalidate: usa cache imediatamente e revalida em background)
   useEffect(() => {
     if (!sessao) return;
+    if (dadosCarregadosNoLoginRef.current) {
+      dadosCarregadosNoLoginRef.current = false;
+      return;
+    }
+
     let cancelado = false;
-    setCarregando(true);
+    const temDadosLocais = vouchers.length > 0 || !!cacheInicial;
+
+    if (!temDadosLocais) {
+      setCarregando(true);
+    }
+    setSincronizando(true);
     setErroCarga("");
 
     api
       .dados(sessao.token)
       .then((d) => {
         if (cancelado) return;
-        // Normaliza cada voucher na carga: status desconhecido vira "pendente",
-        // valores numéricos em formato "R$ 1.234,56" (digitados direto na
-        // planilha) viram números, e vouchers antigos com entrada > total
-        // são ajustados para que o PDF não saia com total/a receber zerados.
-        setVouchers((d.vouchers ?? []).map(normalizarVoucher));
-        // Mesma proteção para o valor dos gastos.
-        setGastos(
-          (d.gastos ?? []).map((g) => ({ ...g, valor: Math.max(0, parseNumero(g.valor)) })),
-        );
-        setConfig({ ...CONFIG_PADRAO, ...(d.config ?? {}) });
-        // Uma implantação antiga responde normalmente, mas descarta os campos
-        // novos ao gravar. Avisamos para o texto não sumir sem explicação.
+        const vouchersNorm = (d.vouchers ?? []).map(normalizarVoucher);
+        const gastosNorm = (d.gastos ?? []).map((g) => ({
+          ...g,
+          valor: Math.max(0, parseNumero(g.valor)),
+        }));
+        const configNorm = { ...CONFIG_PADRAO, ...(d.config ?? {}) };
+
+        setVouchers(vouchersNorm);
+        setGastos(gastosNorm);
+        setConfig(configNorm);
         setApiDesatualizada(!modoLocal() && versaoDesatualizada(d.versao));
+
+        // Grava no cache e notifica outras janelas/abas
+        gravarCacheDados({
+          vouchers: vouchersNorm,
+          gastos: gastosNorm,
+          config: configNorm,
+          versao: d.versao,
+        });
+        notificarAbas({
+          tipo: "DADOS_ATUALIZADOS",
+          vouchers: vouchersNorm,
+          gastos: gastosNorm,
+          config: configNorm,
+          versao: d.versao,
+        });
       })
       .catch((e: unknown) => {
-        if (!cancelado)
-          setErroCarga(e instanceof Error ? e.message : "Não foi possível carregar os dados.");
+        if (!cancelado) {
+          const msg = e instanceof Error ? e.message : "Não foi possível carregar os dados.";
+          if (!temDadosLocais) {
+            setErroCarga(msg);
+          }
+        }
       })
       .finally(() => {
-        if (!cancelado) setCarregando(false);
+        if (!cancelado) {
+          setCarregando(false);
+          setSincronizando(false);
+        }
       });
 
     return () => {
@@ -243,6 +414,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ehAdmin: sessao?.usuario?.papel === "admin",
       verificando,
       carregando,
+      sincronizando,
       local: modoLocal(),
       erroCarga,
       apiDesatualizada,
@@ -250,14 +422,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       entrar: (s) => {
         gravarSessao(s);
         setSessao(s);
+
+        // Se a resposta de login já trouxe os dados, aplica direto (0ms de tela de carregamento!)
+        if (s.dados) {
+          dadosCarregadosNoLoginRef.current = true;
+          const vouchersNorm = (s.dados.vouchers ?? []).map(normalizarVoucher);
+          const gastosNorm = (s.dados.gastos ?? []).map((g) => ({
+            ...g,
+            valor: Math.max(0, parseNumero(g.valor)),
+          }));
+          const configNorm = { ...CONFIG_PADRAO, ...(s.dados.config ?? {}) };
+
+          setVouchers(vouchersNorm);
+          setGastos(gastosNorm);
+          setConfig(configNorm);
+          setCarregando(false);
+          setSincronizando(false);
+          setApiDesatualizada(!modoLocal() && versaoDesatualizada(s.dados.versao));
+
+          gravarCacheDados({
+            vouchers: vouchersNorm,
+            gastos: gastosNorm,
+            config: configNorm,
+            versao: s.dados.versao,
+          });
+          notificarAbas({
+            tipo: "DADOS_ATUALIZADOS",
+            vouchers: vouchersNorm,
+            gastos: gastosNorm,
+            config: configNorm,
+            versao: s.dados.versao,
+          });
+        }
       },
+
       sair: async () => {
         if (sessao) await api.sair(sessao.token).catch(() => {});
         gravarSessao(null);
+        limparCacheDados();
         setSessao(null);
         setVouchers([]);
+        setGastos([]);
         setConfig(CONFIG_PADRAO);
+        notificarAbas({ tipo: "LOGOUT" });
       },
+
       recarregar: () => setRecarga((n) => n + 1),
 
       vouchers,
@@ -266,43 +475,113 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       salvarVoucher: async (v) => {
         const antes = vouchers;
-        setVouchers((l) =>
-          l.some((x) => x.id === v.id) ? l.map((x) => (x.id === v.id ? v : x)) : [v, ...l],
-        );
+        const novos = vouchers.some((x) => x.id === v.id)
+          ? vouchers.map((x) => (x.id === v.id ? v : x))
+          : [v, ...vouchers];
+        setVouchers(novos);
+        gravarCacheDados({ vouchers: novos, gastos, config });
+        notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers: novos, gastos, config });
+
         await executar(
           () => api.salvarVoucher(token, v),
           `Voucher ${v.codigo} salvo.`,
-          () => setVouchers(antes),
+          () => {
+            setVouchers(antes);
+            gravarCacheDados({ vouchers: antes, gastos, config });
+            notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers: antes, gastos, config });
+          },
         );
       },
+
       removerVoucher: async (id) => {
         const antes = vouchers;
-        setVouchers((l) => l.filter((v) => v.id !== id));
-        await executar(() => api.removerVoucher(token, id), "Voucher excluído.", () => setVouchers(antes));
+        const novos = vouchers.filter((v) => v.id !== id);
+        setVouchers(novos);
+        gravarCacheDados({ vouchers: novos, gastos, config });
+        notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers: novos, gastos, config });
+
+        await executar(
+          () => api.removerVoucher(token, id),
+          "Voucher excluído.",
+          () => {
+            setVouchers(antes);
+            gravarCacheDados({ vouchers: antes, gastos, config });
+            notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers: antes, gastos, config });
+          },
+        );
       },
+
       salvarGasto: async (g) => {
         const antes = gastos;
-        setGastos((l) => [g, ...l]);
-        await executar(() => api.salvarGasto(token, g), "Gasto registrado.", () => setGastos(antes));
+        const novos = [g, ...gastos];
+        setGastos(novos);
+        gravarCacheDados({ vouchers, gastos: novos, config });
+        notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers, gastos: novos, config });
+
+        await executar(
+          () => api.salvarGasto(token, g),
+          "Gasto registrado.",
+          () => {
+            setGastos(antes);
+            gravarCacheDados({ vouchers, gastos: antes, config });
+            notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers, gastos: antes, config });
+          },
+        );
       },
+
       removerGasto: async (id) => {
         const antes = gastos;
-        setGastos((l) => l.filter((g) => g.id !== id));
-        await executar(() => api.removerGasto(token, id), "Gasto excluído.", () => setGastos(antes));
+        const novos = gastos.filter((g) => g.id !== id);
+        setGastos(novos);
+        gravarCacheDados({ vouchers, gastos: novos, config });
+        notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers, gastos: novos, config });
+
+        await executar(
+          () => api.removerGasto(token, id),
+          "Gasto excluído.",
+          () => {
+            setGastos(antes);
+            gravarCacheDados({ vouchers, gastos: antes, config });
+            notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers, gastos: antes, config });
+          },
+        );
       },
+
       mudarStatus: async (id, status) => {
         const antes = vouchers;
         const alvo = vouchers.find((v) => v.id === id);
         if (!alvo) return;
         const novo = { ...alvo, status };
-        setVouchers((l) => l.map((v) => (v.id === id ? novo : v)));
-        await executar(() => api.salvarVoucher(token, novo), "", () => setVouchers(antes));
+        const novos = vouchers.map((v) => (v.id === id ? novo : v));
+        setVouchers(novos);
+        gravarCacheDados({ vouchers: novos, gastos, config });
+        notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers: novos, gastos, config });
+
+        await executar(
+          () => api.salvarVoucher(token, novo),
+          "",
+          () => {
+            setVouchers(antes);
+            gravarCacheDados({ vouchers: antes, gastos, config });
+            notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers: antes, gastos, config });
+          },
+        );
       },
+
       salvarConfig: async (c) => {
         const antes = config;
         setConfig(c);
-        await executar(() => api.salvarConfig(token, c), "Configurações salvas.", () =>
-          setConfig(antes),
+        gravarCacheDados({ vouchers, gastos, config: c });
+        notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers, gastos, config: c });
+
+        await executar(
+          () => api.salvarConfig(token, c),
+          "Configurações salvas.",
+          () => {
+            setConfig(antes);
+            gravarCacheDados({ vouchers, gastos, config: antes });
+            notificarAbas({ tipo: "DADOS_ATUALIZADOS", vouchers, gastos, config: antes });
+          },
         );
       },
 
@@ -313,6 +592,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sessao,
       verificando,
       carregando,
+      sincronizando,
       erroCarga,
       apiDesatualizada,
       vouchers,
