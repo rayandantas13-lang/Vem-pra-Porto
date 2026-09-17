@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/utils/cn";
 import { Icon, type IconName } from "@/components/Icon";
+import { parseNumero } from "@/lib/utils";
 
 /* ---------------- Botão ---------------- */
 type Variante = "primario" | "suave" | "contorno" | "fantasma" | "perigo" | "sucesso";
@@ -134,7 +135,9 @@ export function EntradaNumero({
   const [texto, setTexto] = useState(valor ? String(valor) : "");
 
   useEffect(() => {
-    if (Number(texto) !== valor) setTexto(valor ? String(valor) : "");
+    // Compara com parseNumero (e não Number): um texto em formato BR
+    // ("600,50") continua sendo igual ao valor guardado e o campo não limpa.
+    if (parseNumero(texto) !== valor) setTexto(valor ? String(valor) : "");
     // `texto` entra de propósito: comparamos com o digitado, mas só reagimos a `valor`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valor]);
@@ -149,8 +152,13 @@ export function EntradaNumero({
         const t = e.target.value;
         setTexto(t);
         if (t === "") return aoMudar(0);
-        const n = Number(t);
-        if (!Number.isNaN(n)) aoMudar(n);
+        // parseNumero em vez de Number(): no navegador pt-BR o
+        // input[type=number] devolve a vírgula como decimal ("600,50"), e
+        // Number("600,50") vira NaN — o valor nunca chegava ao formulário e
+        // o voucher era salvo com total/entrada/desconto em 0 ("zerado"),
+        // mesmo com o campo exibindo o número digitado.
+        const n = parseNumero(t);
+        aoMudar(Number.isFinite(n) ? n : 0);
       }}
       className={cn(BASE_CAMPO, className)}
     />

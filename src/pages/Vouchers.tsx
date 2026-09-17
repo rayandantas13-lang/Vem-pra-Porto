@@ -34,6 +34,7 @@ import {
   nomesPasseios,
   normalizar,
   ordenarPorPeriodo,
+  parseNumero,
   passeioVazio,
   periodoVoucher,
   PERIODOS_VOUCHER,
@@ -316,7 +317,7 @@ export default function Vouchers() {
       ...form,
       clientes,
       passeios,
-      pessoas: Math.max(1, Number(form.pessoas) || clientes.length),
+      pessoas: Math.max(1, Math.round(parseNumero(form.pessoas)) || clientes.length),
       codigo: form.codigo.trim().toUpperCase(),
     };
     salvarVoucher(salvo);
@@ -989,6 +990,11 @@ export default function Vouchers() {
                       ? `soma dos passeios: ${brl(totalSugerido(form, config.servicos))}`
                       : "digitado à mão"
                     : `soma dos passeios × ${totalPessoas(form)} pessoa${totalPessoas(form) > 1 ? "s" : ""}`
+                }
+                erro={
+                  totalComDesconto(form) === 0
+                    ? "O total está zerado. Se não foi de propósito, confira o valor digitado (aceita vírgula, ex.: 600,50) antes de salvar."
+                    : undefined
                 }
               >
                 <div className="flex gap-2">
