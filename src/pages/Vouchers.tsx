@@ -198,9 +198,9 @@ export default function Vouchers() {
       total: vouchers.length,
       pessoas: ativos.reduce((s, v) => s + totalPessoas(v), 0),
       faturado: ativos.reduce((s, v) => s + totalComDesconto(v), 0),
-      receber: ativos
-        .filter((v) => v.status !== "concluido")
-        .reduce((s, v) => s + aReceber(v), 0),
+      // Conta tudo que ainda falta receber, inclusive de passeios já
+      // realizados (concluídos) — o passeio acontecer não quita o saldo.
+      receber: ativos.reduce((s, v) => s + aReceber(v), 0),
     };
   }, [vouchers]);
 
@@ -1067,9 +1067,34 @@ export default function Vouchers() {
                   aoMudar={(n) => set({ entrada: n })}
                 />
               </Campo>
-              <Campo rotulo="A receber">
-                <div className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm font-extrabold text-amber-700 ring-1 ring-amber-200">
-                  {brl(aReceber(form))}
+              <Campo
+                rotulo="A receber (R$)"
+                dica={
+                  form.aReceber === undefined || form.aReceber === null
+                    ? "automático: total − desconto − entrada (digite para ajustar)"
+                    : `valor manual — pelo cálculo seria ${brl(
+                        Math.max(0, totalComDesconto(form) - parseNumero(form.entrada)),
+                      )}`
+                }
+              >
+                <div className="flex gap-2">
+                  <EntradaNumero
+                    min={0}
+                    step="0.01"
+                    valor={aReceber(form)}
+                    aoMudar={(n) => set({ aReceber: n })}
+                    className="bg-amber-50 font-extrabold text-amber-700 ring-amber-200"
+                  />
+                  {form.aReceber !== undefined && form.aReceber !== null && (
+                    <button
+                      type="button"
+                      title="Voltar para o cálculo automático (total − desconto − entrada)"
+                      onClick={() => set({ aReceber: undefined })}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-3 text-xs font-bold whitespace-nowrap text-amber-700 transition hover:bg-amber-100"
+                    >
+                      <Icon name="refresh" className="size-3.5" /> Auto
+                    </button>
+                  )}
                 </div>
               </Campo>
               <Campo rotulo="Forma de pagamento" className="sm:col-span-2">

@@ -385,9 +385,12 @@ class PDFVoucherBuilder {
     // Box principal
     this.box(this.M, this.y, this.W, boxH, CORES.escuro, false, 2);
 
-    if (voucher.status === "concluido") {
-      // Voucher CONCLUÍDO: o PDF sai sem os valores. A caixa preta de
-      // pagamento fica apenas com o aviso centralizado no meio.
+    if (voucher.status === "concluido" && aReceberValor <= 0) {
+      // Voucher CONCLUÍDO e totalmente pago: o PDF sai sem os valores e a
+      // caixa preta de pagamento fica apenas com o aviso centralizado. Se
+      // ainda houver saldo a receber, os valores continuam impressos — o
+      // passeio ter acontecido não quita a dívida (antes o PDF saía "zerado"
+      // mesmo com R$ a receber em aberto).
       const rotulo = (STATUS_META.concluido?.label ?? "Concluído").toUpperCase();
       const FONTE = 15; // pt
       const fmm = FONTE * 0.3528; // 15pt ≈ 5,3mm (p/ compensar a linha de base)

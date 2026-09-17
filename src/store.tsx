@@ -190,7 +190,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessao, setSessao] = useState<Sessao | null>(sessaoInicial);
   // Se já há sessão válida no localStorage, não bloqueia a tela inteira:
   // a validação no servidor é feita em background.
-  const [verificando, setVerificando] = useState(false);
+  const [verificando] = useState(false);
   // Se já temos cache, não bloqueamos o painel (carregando = false)
   const [carregando, setCarregando] = useState(() => !cacheInicial && !!sessaoInicial);
   const [sincronizando, setSincronizando] = useState(false);

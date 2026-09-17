@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 9;
+export const VERSAO_ESPERADA = 11;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -35,13 +35,15 @@ export function versaoDesatualizada(versao: unknown) {
 }
 
 export const AVISO_IMPLANTACAO_ANTIGA =
-  "O Apps Script publicado está desatualizado. A versão nova mantém você " +
-  "conectado por 10 dias (com renovação automática), grava corretamente o " +
-  "desconto e os campos “O que levar”, “Informações adicionais” e a data/hora " +
-  "de volta, e entende valores digitados diretamente na planilha em formato " +
-  "brasileiro (ex.: R$ 1.234,56), evitando que o PDF saia com total/a receber " +
-  "zerados. Abra o Apps Script, cole o Code.gs mais recente e use Implantar " +
-  "→ Gerenciar implantações → ✏️ → Versão: Nova versão.";
+  "O Apps Script publicado está desatualizado — enquanto ele não for " +
+  "reimplantado, valores digitados na planilha podem chegar zerados ao site. " +
+  "A versão nova mantém você conectado por 10 dias (com renovação automática), " +
+  "grava corretamente o desconto e os campos “O que levar”, “Informações " +
+  "adicionais” e a data/hora de volta, entende valores digitados diretamente " +
+  "na planilha em formato brasileiro (ex.: R$ 1.234,56 ou 1.200) e respeita um " +
+  "valor próprio na coluna aReceber, evitando que o PDF saia com total/a " +
+  "receber zerados. Abra o Apps Script, cole o Code.gs mais recente e use " +
+  "Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão.";
 
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
 const ACOES_REPETIVEIS = new Set([

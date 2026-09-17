@@ -121,6 +121,13 @@ export function Entrada({ className, ...props }: React.InputHTMLAttributes<HTMLI
  * O efeito só reescreve o texto quando o número muda POR FORA do campo (ex.:
  * escolher um serviço preenche o total do voucher) — enquanto a pessoa está
  * digitando, o texto nunca é tocado.
+ *
+ * 3) Vírgula/zero silencioso: o campo é type="text" com inputMode="decimal"
+ *    (não type="number"). Em vários celulares/navegadores, digitar "600,50"
+ *    num type="number" deixa o campo em estado INVÁLIDO: a tela continua
+ *    mostrando o que foi digitado, mas e.target.value vira "" e o app salva
+ *    0 — o famoso "mostrei na hora, mas atualizou a página e zerou". Com
+ *    texto puro, o valor digitado sempre chega e o parseNumero decide.
  */
 export function EntradaNumero({
   valor,
@@ -145,18 +152,18 @@ export function EntradaNumero({
   return (
     <input
       {...props}
-      type="number"
+      type="text"
+      inputMode="decimal"
       value={texto}
       placeholder={placeholder}
       onChange={(e) => {
         const t = e.target.value;
         setTexto(t);
         if (t === "") return aoMudar(0);
-        // parseNumero em vez de Number(): no navegador pt-BR o
-        // input[type=number] devolve a vírgula como decimal ("600,50"), e
-        // Number("600,50") vira NaN — o valor nunca chegava ao formulário e
-        // o voucher era salvo com total/entrada/desconto em 0 ("zerado"),
-        // mesmo com o campo exibindo o número digitado.
+        // parseNumero em vez de Number(): aceita vírgula decimal ("600,50"),
+        // ponto de milhar ("1.200" → 1200) e prefixo "R$". Number("600,50")
+        // viraria NaN e o voucher era salvo com total/entrada/desconto em 0
+        // ("zerado"), mesmo com o campo exibindo o número digitado.
         const n = parseNumero(t);
         aoMudar(Number.isFinite(n) ? n : 0);
       }}
