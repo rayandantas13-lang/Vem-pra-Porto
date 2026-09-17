@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 12;
+export const VERSAO_ESPERADA = 13;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -349,13 +349,27 @@ export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]
   }
 
   try {
-    const dados = await enviar<{ temAdmin: boolean; versao?: string }>(url, { acao: "status" });
+    const dados = await enviar<{ temAdmin: boolean; versao?: string; planilha?: InfoPlanilha | null }>(
+      url,
+      { acao: "status" },
+    );
+    // Mostra QUAL planilha o Apps Script está lendo: se for diferente da que
+    // a pessoa edita, os valores digitados nunca chegam ao site — foi a causa
+    // de "o voucher não respeita a planilha".
+    const planilha =
+      dados.planilha?.nome || dados.planilha?.url
+        ? ` ⚠️ Planilha conectada ao Apps Script: “${dados.planilha.nome ?? "sem nome"}”. ${
+            dados.planilha.url ? `(${dados.planilha.url}) ` : ""
+          }Se você estiver editando OUTRA planilha no Google, os valores nunca vão aparecer no site — abra EXATAMENTE esta aqui para editar.`
+        : "";
     passos.push({
       titulo: "Leitura da planilha (POST)",
       ok: true,
-      detalhe: dados.temAdmin
-        ? "Conexão funcionando! A planilha já tem administrador cadastrado."
-        : "Conexão funcionando! A planilha está vazia — crie o administrador no primeiro acesso.",
+      detalhe:
+        (dados.temAdmin
+          ? "Conexão funcionando! A planilha já tem administrador cadastrado."
+          : "Conexão funcionando! A planilha está vazia — crie o administrador no primeiro acesso.") +
+        planilha,
     });
 
     // Conectar não basta: uma implantação antiga responde normalmente mas
@@ -390,6 +404,12 @@ export async function diagnosticarUrl(valor: string): Promise<PassoDiagnostico[]
  * antigas continuam devolvendo o usuário direto, e os dois formatos são
  * aceitos aqui.
  */
+/** Dados da planilha à qual o Apps Script publicado está conectado. */
+export interface InfoPlanilha {
+  nome?: string;
+  url?: string;
+}
+
 export interface RespostaEu {
   usuario: Usuario;
   expiraEm?: string;
@@ -401,7 +421,8 @@ function normalizarEu(r: Usuario | RespostaEu): RespostaEu {
 }
 
 export const api = {
-  status: () => req<{ temAdmin: boolean; versao?: string }>({ acao: "status" }),
+  status: () =>
+    req<{ temAdmin: boolean; versao?: string; planilha?: InfoPlanilha | null }>({ acao: "status" }),
   entrar: (usuario: string, senha: string) => req<Sessao>({ acao: "entrar", usuario, senha }),
   criarPrimeiroAdmin: (p: {
     nome: string;

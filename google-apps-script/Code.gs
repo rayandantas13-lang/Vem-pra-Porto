@@ -46,7 +46,10 @@ var SEGURANCA = {
   //      edições manuais) não confundem mais o painel: na leitura vale a
   //      ÚLTIMA linha (a mais recente) e, ao salvar, as cópias fantasmas são
   //      removidas da aba.
-  versao: '12',
+  // v13: diagnóstico informa o NOME e a URL da planilha conectada ao script
+  //      (status e GET) — para descobrir na hora quando se está editando uma
+  //      planilha e o Apps Script lendo outra.
+  versao: '13',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -103,7 +106,23 @@ var CONFIG_PADRAO = {
  * aqui, a implantação está desatualizada ou não está aberta a "Qualquer pessoa".
  */
 function doGet() {
-  return responder({ ok: true, data: { servico: 'Controle de Vouchers', versao: SEGURANCA.versao } });
+  return responder({ ok: true, data: { servico: 'Controle de Vouchers', versao: SEGURANCA.versao, planilha: infoPlanilha() } });
+}
+
+/**
+ * Nome e URL da planilha à qual este script está conectado. O Apps Script é
+ * "presado" à planilha onde foi criado; se a pessoa edita outra planilha (uma
+ * cópia, por exemplo), os valores nunca chegam ao site. Exibir isso no
+ * diagnóstico revela o problema na hora. Não é dado sensível: é a planilha
+ * do próprio dono do sistema.
+ */
+function infoPlanilha() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    return ss ? { nome: ss.getName(), url: ss.getUrl() } : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function doPost(e) {
@@ -135,7 +154,7 @@ function processar(req) {
     var acao = texto(req.acao, 40, true, 'Ação');
 
     // Somente estas três ações existem antes da autenticação.
-    if (acao === 'status') return ok({ temAdmin: temAdmin(), versao: SEGURANCA.versao });
+    if (acao === 'status') return ok({ temAdmin: temAdmin(), versao: SEGURANCA.versao, planilha: infoPlanilha() });
     if (acao === 'criarPrimeiroAdmin') return ok(criarPrimeiroAdmin(req));
     if (acao === 'entrar') return ok(entrar(req));
 
