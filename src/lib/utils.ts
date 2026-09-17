@@ -346,8 +346,11 @@ export const ordenarPorPeriodo = (lista: Voucher[], periodo: PeriodoVoucher, h =
 };
 
 /**
- * Converte um vindo do banco/planilha em número de forma defensiva:
- * - tira ponto de milhar e troca vírgula decimal por ponto (ex.: "1.234,56" → 1234.56);
+ * Converte um valor vindo do banco/planilha/campo em número de forma defensiva:
+ * - aceita número direto ("300", "600.5") — tentado ANTES do tratamento BR,
+ *   senão "600.5" (ponto decimal) seria lido como "6005";
+ * - aceita formato brasileiro ("1.234,56" → 1234.56, "600,50" → 600.5),
+ *   com ponto de milhar e vírgula decimal;
  * - ignora prefixos como "R$ ";
  * - se ainda não der número, devolve 0 em vez de NaN.
  * Antes o `Number(v.total) || 0` transformava "R$ 300,00" (digitado direto na
@@ -359,10 +362,12 @@ export function parseNumero(v: unknown): number {
   if (v === null || v === undefined) return 0;
   const str = String(v).trim();
   if (!str) return 0;
-  const limpo = str
-    .replace(/R\$\s?/i, "")
-    .replace(/\./g, "")
-    .replace(/,/g, ".");
+  const semMoeda = str.replace(/^R\$\s?/i, "");
+  // Formato direto ("300", "600.5"): se já for número válido, não mexe mais.
+  const direto = Number(semMoeda);
+  if (Number.isFinite(direto)) return direto;
+  // Formato BR: tira ponto de milhar e troca vírgula decimal por ponto.
+  const limpo = semMoeda.replace(/\./g, "").replace(/,/g, ".");
   const n = Number(limpo);
   return Number.isFinite(n) ? n : 0;
 }
