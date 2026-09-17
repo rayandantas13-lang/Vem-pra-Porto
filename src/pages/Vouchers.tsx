@@ -307,6 +307,8 @@ export default function Vouchers() {
     if (!clientes.length) return setErro("Informe pelo menos o nome de um cliente.");
     const passeios = form.passeios.filter((p) => p.nome.trim() && p.data);
     if (!passeios.length) return setErro("Informe pelo menos um passeio com nome e data.");
+    if (form.tipoDesconto === "percentual" && (form.desconto ?? 0) > 100)
+      return setErro("O desconto percentual não pode passar de 100%.");
     if (form.entrada > totalComDesconto(form))
       return setErro("A entrada não pode ser maior que o total (com desconto).");
 
@@ -1015,19 +1017,28 @@ export default function Vouchers() {
                   )}
                 </div>
               </Campo>
+              {/* Desconto: padrão é percentual (%), dá para trocar para valor
+                  fixo em R$ no seletor ao lado do número. */}
               <Campo
                 rotulo="Desconto"
                 dica={
                   form.desconto && form.desconto > 0
-                    ? `−${brl(totalComDesconto(form))}`
+                    ? form.tipoDesconto === "fixo"
+                      ? `−${brl(valorDesconto(form))}`
+                      : `${form.desconto}% = −${brl(valorDesconto(form))}`
+                    : undefined
+                }
+                erro={
+                  form.tipoDesconto === "percentual" && (form.desconto ?? 0) > 100
+                    ? "O desconto percentual não pode passar de 100%."
                     : undefined
                 }
               >
                 <div className="flex gap-2">
                   <Selecao
-                    value={form.tipoDesconto}
+                    value={form.tipoDesconto ?? "percentual"}
                     onChange={(e) => set({ tipoDesconto: e.target.value as "percentual" | "fixo" })}
-                    aria-label="Tipo do desconto"
+                    aria-label="Tipo do desconto: percentual (%) ou valor fixo (R$)"
                     className="w-[76px] shrink-0 text-center"
                   >
                     <option value="percentual">%</option>
@@ -1035,6 +1046,7 @@ export default function Vouchers() {
                   </Selecao>
                   <EntradaNumero
                     min={0}
+                    max={form.tipoDesconto === "percentual" ? 100 : undefined}
                     step="0.01"
                     valor={form.desconto ?? 0}
                     aoMudar={(n) => set({ desconto: n })}
