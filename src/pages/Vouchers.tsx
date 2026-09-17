@@ -236,21 +236,33 @@ export default function Vouchers() {
    * Atualiza o formulário e, enquanto o total não foi digitado à mão,
    * recalcula o "Valor total" como a SOMA de todos os passeios × pessoas.
    * Antes o total era sobrescrito só com o preço do último passeio escolhido.
+   * Segurança: se a soma der 0 (passeio sem preço cadastrado / nome diferente
+   * do serviço), mantém o total que já estava — NUNCA zera um valor
+   * negociado por causa do recálculo automático.
    */
   const atualizar = (p: Partial<Voucher>) =>
     setForm((f) => {
       if (!f) return f;
       const novo = { ...f, ...p };
-      return totalManual ? novo : { ...novo, total: totalSugerido(novo, config.servicos) };
+      if (totalManual) return novo;
+      const sugerido = totalSugerido(novo, config.servicos);
+      return sugerido > 0 ? { ...novo, total: sugerido } : novo;
     });
 
-  /** Abre o formulário (novo ou edição) já sabendo se o total é automático ou manual. */
+  /**
+   * Abre o formulário (novo ou edição) já sabendo se o total é automático ou
+   * manual. Se o voucher está com total zerado mas a soma dos passeios dá um
+   * valor, preenche com a soma — o lápis "passa a preencher" em vez de abrir
+   * mostrando R$ 0,00.
+   */
   const abrirForm = (v: Voucher) => {
-    setForm(v);
+    const sugerido = totalSugerido(v, config.servicos);
+    const base = v.total > 0 ? v : { ...v, total: sugerido };
+    setForm(base);
     setErro("");
     // Se o total salvo é exatamente a soma dos passeios, continua automático;
     // se foi negociado/digitado (diferente da soma), fica como está.
-    setTotalManual(v.total !== totalSugerido(v, config.servicos));
+    setTotalManual(base.total !== sugerido);
   };
 
   const setCliente = (i: number, valor: string) => {
