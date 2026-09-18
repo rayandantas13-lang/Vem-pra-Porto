@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 15;
+export const VERSAO_ESPERADA = 16;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -35,18 +35,13 @@ export function versaoDesatualizada(versao: unknown) {
 }
 
 export const AVISO_IMPLANTACAO_ANTIGA =
-  "O Apps Script publicado está desatualizado — enquanto ele não for " +
-  "reimplantado, os valores podem continuar subindo errados para a planilha. " +
-  "A versão nova entende valores em formato brasileiro (ex.: R$ 1.234,56 ou " +
-  "1.200), grava as colunas de dinheiro como número de verdade (não mais como " +
-  "texto), devolve o formato automático às colunas que estavam aparecendo como " +
-  "DATA, corrige sozinha valores absurdos na coluna aReceber (lixo antigo tipo " +
-  "10.000.000.000.000.000, que volta para o cálculo total − desconto − " +
-  "entrada), ignora células de dinheiro que viraram data por engano (número " +
-  "digitado com ponto), trata desconto acima de 100 sem tipo como valor em R$ " +
-  "e remove linhas duplicadas. Abra o Apps Script, cole o Code.gs mais " +
-  "recente e use Implantar → Gerenciar implantações → ✏️ → Versão: Nova " +
-  "versão.";
+  "O Apps Script publicado está desatualizado. A versão nova corrige o valor " +
+  "a receber: preserva números da planilha sem confundir decimais com milhares, " +
+  "calcula em centavos e não trata células vazias, inválidas ou datas como " +
+  "saldo quitado. Também corrige o formato das colunas de dinheiro e remove " +
+  "linhas duplicadas. Para aplicar a correção na planilha, cole o Code.gs mais " +
+  "recente no Apps Script e use Implantar → Gerenciar implantações → ✏️ → " +
+  "Versão: Nova versão → Implantar. Depois atualize os dados do painel.";
 
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
 const ACOES_REPETIVEIS = new Set([

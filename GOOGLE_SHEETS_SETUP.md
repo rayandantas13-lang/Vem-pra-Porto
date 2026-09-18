@@ -80,11 +80,25 @@ Por isso o script informa a própria versão ao painel. Quando ela está atrás 
 
 Para atualizar: cole o `Code.gs` novo e vá em **Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar**. Depois **saia e entre novamente** no painel.
 
+### Correção do valor a receber (v16)
+
+O cálculo usa **total − desconto em reais − entrada**, com valores arredondados em centavos. O desconto em reais é arredondado antes da subtração, para que os números do formulário, painel e PDF fechem entre si. Por exemplo: total `199,90`, desconto de `5%` (`10,00`) e entrada `0,00` resultam em **189,90 a receber**.
+
+A versão 16 corrige três problemas na leitura/gravação:
+
+- **Decimal confundido com milhar:** um número nativo da planilha como `189.905` era convertido em texto e relido como `189905`. Números agora mantêm seu tipo original, e os saldos gravados têm apenas centavos. Textos no padrão brasileiro, como `1.200` e `R$ 1.234,56`, continuam aceitos.
+- **Saldo zerado indevidamente:** células vazias, datas, textos inválidos, negativos e valores acima do teto não são ajustes manuais. Nesses casos volta o cálculo automático. **Zero digitado explicitamente continua válido**, assim como outros ajustes manuais legítimos.
+- **Colunas que continuavam como data:** o reparo agora lê os tipos originais antes de definir um formato numérico explícito. Apenas limpar a formatação não removia o formato de data. Novas gravações também garantem o formato numérico.
+
+**Para aplicar ao Google Sheets:** substitua o `Code.gs` e publique uma **Nova versão** da implantação. O reparo roda na primeira requisição. O botão de atualizar dados do painel carrega o resultado. Para repetir o reparo manualmente, execute `repararPlanilha`.
+
+Se um saldo incorreto já foi gravado como um número manual válido, não é possível distinguir automaticamente esse erro de um valor negociado. Confira o voucher e use **Auto** no campo **A receber**, ou corrija o ajuste manual. A correção não apaga valores negociados por suposição.
+
 ### Valores errados na planilha (v14)
 
 Se a coluna `aReceber` mostra valores absurdos (ex.: `10.000.000.000.000.000` no lugar de `1000`) ou a coluna `total` aparece com formato de **data** em vez de número, atualize o `Code.gs` e reimplante como descrito acima. Na **primeira requisição da versão nova**, a planilha é reparada automaticamente:
 
-- as colunas de dinheiro (`total`, `desconto`, `entrada`, `aReceber`, `pessoas` em `Vouchers` e `valor` em `Gastos`) voltam para o formato **Automático**;
+- as colunas de dinheiro (`total`, `desconto`, `entrada`, `aReceber`, `pessoas` em `Vouchers` e `valor` em `Gastos`) passam a usar **formato numérico explícito** na versão 16;
 - os valores passam a ser gravados como **número de verdade** (antes iam como texto, que não entra em somas da própria planilha);
 - um `aReceber` acima de R$ 100 milhões é considerado lixo e **volta para o cálculo automático** (total − desconto − entrada) — um valor manual normal continua respeitado;
 - linhas duplicadas com o mesmo `id` são removidas, ficando apenas a mais recente (a que o painel exibe).
@@ -199,5 +213,7 @@ A proteção contra pessoas externas é feita no servidor: sem uma sessão váli
 
 ```bash
 npm install
+npm test
+npx tsc --noEmit
 npm run dev
 ```

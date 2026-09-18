@@ -57,7 +57,9 @@ function lerCacheDados(): CacheDados | null {
     if (!raw) return null;
     const cache = JSON.parse(raw) as CacheDados;
     if (!cache || !Array.isArray(cache.vouchers)) return null;
-    return cache;
+    // O cache também pode ter saldos inválidos de versões antigas. Aplique
+    // a mesma leitura da API antes do primeiro render, inclusive sem conexão.
+    return { ...cache, vouchers: deduplicarPorId(cache.vouchers).map(normalizarVoucher) };
   } catch {
     return null;
   }
@@ -226,7 +228,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       config: Config;
       versao?: string;
     }) => {
-      setVouchers(novos.vouchers);
+      setVouchers(deduplicarPorId(novos.vouchers).map(normalizarVoucher));
       setGastos(novos.gastos);
       setConfig(novos.config);
       if (novos.versao) {
@@ -479,7 +481,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       gastos,
       config,
 
-      salvarVoucher: async (v) => {
+      salvarVoucher: async (voucher) => {
+        // Cache, tela e API recebem os mesmos centavos, sem mudar após recarregar.
+        const v = normalizarVoucher(voucher);
         const antes = vouchers;
         const novos = vouchers.some((x) => x.id === v.id)
           ? vouchers.map((x) => (x.id === v.id ? v : x))
