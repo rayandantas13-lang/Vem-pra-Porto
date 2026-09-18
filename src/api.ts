@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 13;
+export const VERSAO_ESPERADA = 15;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -36,14 +36,17 @@ export function versaoDesatualizada(versao: unknown) {
 
 export const AVISO_IMPLANTACAO_ANTIGA =
   "O Apps Script publicado está desatualizado — enquanto ele não for " +
-  "reimplantado, valores digitados na planilha podem chegar zerados ao site. " +
-  "A versão nova mantém você conectado por 10 dias (com renovação automática), " +
-  "grava corretamente o desconto e os campos “O que levar”, “Informações " +
-  "adicionais” e a data/hora de volta, entende valores digitados diretamente " +
-  "na planilha em formato brasileiro (ex.: R$ 1.234,56 ou 1.200) e respeita um " +
-  "valor próprio na coluna aReceber, evitando que o PDF saia com total/a " +
-  "receber zerados. Abra o Apps Script, cole o Code.gs mais recente e use " +
-  "Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão.";
+  "reimplantado, os valores podem continuar subindo errados para a planilha. " +
+  "A versão nova entende valores em formato brasileiro (ex.: R$ 1.234,56 ou " +
+  "1.200), grava as colunas de dinheiro como número de verdade (não mais como " +
+  "texto), devolve o formato automático às colunas que estavam aparecendo como " +
+  "DATA, corrige sozinha valores absurdos na coluna aReceber (lixo antigo tipo " +
+  "10.000.000.000.000.000, que volta para o cálculo total − desconto − " +
+  "entrada), ignora células de dinheiro que viraram data por engano (número " +
+  "digitado com ponto), trata desconto acima de 100 sem tipo como valor em R$ " +
+  "e remove linhas duplicadas. Abra o Apps Script, cole o Code.gs mais " +
+  "recente e use Implantar → Gerenciar implantações → ✏️ → Versão: Nova " +
+  "versão.";
 
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */
 const ACOES_REPETIVEIS = new Set([
