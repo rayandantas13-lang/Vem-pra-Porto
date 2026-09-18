@@ -199,9 +199,11 @@ export default function Vouchers() {
       total: vouchers.length,
       pessoas: ativos.reduce((s, v) => s + totalPessoas(v), 0),
       faturado: ativos.reduce((s, v) => s + totalComDesconto(v), 0),
-      // Conta tudo que ainda falta receber, inclusive de passeios já
-      // realizados (concluídos) — o passeio acontecer não quita o saldo.
-      receber: ativos.reduce((s, v) => s + aReceber(v), 0),
+      // Só vouchers PENDENTES entram no saldo a receber: concluído significa
+      // que o valor já foi recebido e o cancelado sai da conta.
+      receber: vouchers
+        .filter((v) => v.status === "pendente")
+        .reduce((s, v) => s + aReceber(v), 0),
     };
   }, [vouchers]);
 
