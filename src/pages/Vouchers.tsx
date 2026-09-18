@@ -1062,8 +1062,8 @@ export default function Vouchers() {
                     aria-label="Tipo do desconto: percentual (%) ou valor fixo (R$)"
                     className="w-[76px] shrink-0 text-center"
                   >
-                    <option value="percentual">%</option>
                     <option value="fixo">R$</option>
+                    <option value="percentual">%</option>
                   </Selecao>
                   <EntradaNumero
                     min={0}
