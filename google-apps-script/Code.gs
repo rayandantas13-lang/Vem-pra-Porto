@@ -110,7 +110,11 @@ var SEGURANCA = {
   //      automático no lugar. Desconto digitado sem tipo e acima de 100
   //      (ex.: "249.1") passa a ser tratado como R$ fixo — percentual >100
   //      é dado inválido e antes derrubava o "a receber".
-  versao: '15',
+  // v16: preserva números nativos na leitura (189.905 não vira 189905),
+  //      calcula dinheiro em centavos e não confunde saldo inválido com zero.
+  //      O reparo lê datas ANTES de trocar o formato e usa setNumberFormat:
+  //      clearFormat não removia o formato de data das colunas numéricas.
+  versao: '16',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -472,7 +476,10 @@ function registros(nome) {
     .map(function (linha) {
       var reg = {};
       cols.forEach(function (col, i) {
-        reg[col] = lerCelula(linha[i]);
+        // Só textos digitados passam pelo parser BR. Converter um número
+        // nativo para texto fazia 189.905 virar "189.905" e depois 189905.
+        var numerica = COLUNAS_NUMERICAS[nome] && COLUNAS_NUMERICAS[nome][col];
+        reg[col] = numerica && typeof linha[i] === 'number' ? linha[i] : lerCelula(linha[i]);
       });
       return reg;
     });
@@ -498,6 +505,12 @@ function lerCelula(v) {
   return /^'[=+\-@]/.test(valor) ? valor.slice(1) : valor;
 }
 
+function formatoNumeroGs(col) {
+  if (col === 'pessoas') return '0';
+  // Percentuais podem ter mais casas; o desconto em R$ é arredondado no cálculo.
+  return col === 'desconto' ? '0.##########' : '0.00';
+}
+
 function gravar(nome, registro) {
   if (!registro || typeof registro !== 'object') throw new Error('Registro inválido.');
   var s = aba(nome);
@@ -519,6 +532,7 @@ function gravar(nome, registro) {
   }
   var alvo = alvos.length ? alvos[alvos.length - 1] : -1;
   for (var d = alvos.length - 2; d >= 0; d--) s.deleteRow(alvos[d]);
+  if (alvo !== -1) alvo -= alvos.length - 1;
 
   var valores = cols.map(function (col) {
     // Colunas de dinheiro viram NÚMERO na célula: texto "1000" não entra em
@@ -529,8 +543,16 @@ function gravar(nome, registro) {
     }
     return valorCelula(registro[col]);
   });
+  var destino = alvo === -1 ? s.getLastRow() + 1 : alvo;
   if (alvo === -1) s.appendRow(valores);
   else s.getRange(alvo, 1, 1, cols.length).setValues([valores]);
+  // Formata DEPOIS do appendRow, que pode precisar expandir a planilha.
+  // Mesmo se a coluna foi formatada como data após a migração, a linha
+  // gravada pelo app deve continuar sendo dinheiro, não uma data.
+  cols.forEach(function (col, i) {
+    if (COLUNAS_NUMERICAS[nome] && COLUNAS_NUMERICAS[nome][col])
+      s.getRange(destino, i + 1).setNumberFormat(formatoNumeroGs(col));
+  });
   return registro;
 }
 
@@ -592,12 +614,11 @@ function repararPlanilha() {
  * Saneamento rodado sozinho na primeira requisição de cada versão nova do
  * Code.gs (via configurarBanco), em duas frentes:
  *
- * 1) FORMATO: as colunas de dinheiro (total, desconto, entrada, aReceber,
- *    pessoas, valor) voltam para o formato AUTOMÁTICO — inclusive nas linhas
- *    vazias, para o próximo appendRow nascer certo. Se a coluna foi formatada
- *    como Data em algum momento (foi o que fez o total aparecer como data em
- *    vez de número), isso é desfeito aqui. clearFormat também limpa negrito/
- *    cor das células de DADOS dessas colunas — o cabeçalho não é tocado.
+ * 1) FORMATO: as colunas de dinheiro recebem formato numérico explícito,
+ *    inclusive nas linhas vazias. clearFormat não redefinia formatos de data.
+ *    O conteúdo é lido ANTES da mudança para distinguir datas de dinheiro;
+ *    depois da mudança uma data viraria um número serial aparentemente válido.
+ *    Cores, fontes e cabeçalho são preservados.
  * 2) CONTEÚDO: as linhas são regravadas com dinheiro como NÚMERO de verdade;
  *    linhas duplicadas com o mesmo id saem (fica a ÚLTIMA, a mesma que o
  *    painel mostra) e um "aReceber" absurdo (acima do teto — lixo de versão
@@ -617,22 +638,24 @@ function repararAbaDinheiro(nome) {
   var numericas = COLUNAS_NUMERICAS[nome] || {};
   var ultima = s.getLastRow();
 
-  // (1) Formato automático nas colunas de dinheiro.
+  // Capture os tipos originais: mudar o formato primeiro esconde células-data.
+  var dados = ultima > 1 ? s.getRange(2, 1, ultima - 1, cols.length).getValues() : [];
+
+  // (1) Formato numérico de verdade nas colunas de dinheiro.
   var maxLinhas = Math.max(s.getMaxRows(), 2);
   cols.forEach(function (col, i) {
     if (!numericas[col]) return;
     try {
-      s.getRange(2, i + 1, maxLinhas - 1, 1).clearFormat();
+      s.getRange(2, i + 1, maxLinhas - 1, 1).setNumberFormat(formatoNumeroGs(col));
     } catch (e) {
       // Falha de formato não interrompe o reparo do conteúdo.
-      Logger.log('clearFormat ' + nome + '.' + col + ': ' + e);
+      Logger.log('setNumberFormat ' + nome + '.' + col + ': ' + e);
     }
   });
 
   if (ultima < 2) return;
 
-  // (2) Regrava o conteúdo saneado.
-  var dados = s.getRange(2, 1, ultima - 1, cols.length).getValues();
+  // (2) Regrava o conteúdo saneado que foi lido antes de mudar os formatos.
   var idxId = cols.indexOf('id');
   var jaVistos = {};
   var manter = new Array(dados.length);
@@ -680,20 +703,13 @@ function repararLinhaVoucher(linha, cols) {
 
   var desconto = dinheiroFolha(linha[pos.desconto]);
   var tipo = tipoDescontoEfetivoGs(String(linha[pos.tipoDesconto]), desconto);
-  var total = dinheiroFolha(linha[pos.total]);
-  var entrada = dinheiroFolha(linha[pos.entrada]);
+  if (tipo === 'fixo') desconto = arredondarDinheiroGs(desconto);
+  var total = arredondarDinheiroGs(dinheiroFolha(linha[pos.total]));
+  var entrada = arredondarDinheiroGs(dinheiroFolha(linha[pos.entrada]));
   if (entrada > total) total = entrada;
-  var calculado = Math.max(0, total - entrada - descontoValorGs(total, tipo, desconto));
-
-  var bruto = linha[pos.aReceber];
-  // Célula vazia OU virada em data por engano ("1349.1" com ponto) não é
-  // valor digitado: volta para o cálculo automático em vez de gravar 0.
-  var temDigitado = bruto !== '' && bruto !== null && bruto !== undefined && !ehData(bruto);
-  var manual = temDigitado ? parseNumeroGs(bruto) : NaN;
-  var aReceberNovo =
-    temDigitado && isFinite(manual) && manual >= 0 && manual <= TETO_DINHEIRO
-      ? manual
-      : calculado;
+  var calculado = aReceberAutomaticoGs(total, tipo, desconto, entrada);
+  var manual = aReceberManualGs(linha[pos.aReceber], calculado);
+  var aReceberNovo = manual === null ? calculado : manual;
 
   var pessoas = Math.max(1, Math.round(parseNumeroGs(linha[pos.pessoas]))) || 1;
 
@@ -701,6 +717,7 @@ function repararLinhaVoucher(linha, cols) {
     if (col === 'pessoas') return pessoas;
     if (col === 'total') return total;
     if (col === 'desconto') return desconto;
+    if (col === 'tipoDesconto') return tipo;
     if (col === 'entrada') return entrada;
     if (col === 'aReceber') return aReceberNovo;
     return linha[pos[col]];
@@ -710,7 +727,7 @@ function repararLinhaVoucher(linha, cols) {
 /** Demais abas com coluna de dinheiro (Gastos): só saneia o número. */
 function repararLinhaGenerica(linha, cols, numericas) {
   return cols.map(function (col, i) {
-    return numericas[col] ? dinheiroFolha(linha[i]) : linha[i];
+    return numericas[col] ? arredondarDinheiroGs(dinheiroFolha(linha[i])) : linha[i];
   });
 }
 
@@ -719,33 +736,58 @@ function booleano(v) {
 }
 
 /**
- * Converte o valor de uma célula da planilha em número de forma defensiva.
- * Aceita "1234.56", "1.234,56", "R$ 1.234,56" etc. Devolve 0 se não der.
- * Isso evita que um voucher com valores digitados à mão na planilha chegue ao
- * painel como NaN e faça o PDF sair com total/a receber zerados.
+ * Mesmo parser do painel (parseNumeroOpcional). Ausência ou dado inválido é
+ * null, não zero: isso é essencial para não transformar lixo em saldo quitado.
+ * Só strings usam a regra de milhar; números nativos preservam a precisão.
  */
-function parseNumeroGs(v) {
-  if (v === null || v === undefined) return 0;
-  if (typeof v === 'number') return isFinite(v) ? v : 0;
-  if (typeof v === 'boolean') return v ? 1 : 0;
-  var str = String(v).trim();
-  if (!str) return 0;
-  var semMoeda = str.replace(/r\$\s?/i, '').trim();
-  if (!semMoeda) return 0;
-  // Sem vírgula e com pontos separando grupos de 3 dígitos ("1.200",
-  // "12.345.678"): no padrão BR de dinheiro isso é milhar, não decimal —
-  // Number("1.200") devolveria 1.2 e o valor da planilha viraria R$ 1,20.
-  if (/^\d{1,3}(\.\d{3})+$/.test(semMoeda)) {
-    var milhar = Number(semMoeda.replace(/\./g, ''));
-    return isFinite(milhar) ? milhar : 0;
+function parseNumeroOpcionalGs(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v !== 'string') return null;
+  var texto = v.trim().replace(/^R\$\s*/i, '').trim();
+  if (!texto) return null;
+
+  var normalizado = texto;
+  if (/^[+-]?\d{1,3}(\.\d{3})+$/.test(texto)) {
+    normalizado = texto.replace(/\./g, '');
+  } else if (/^[+-]?(?:\d{1,3}(?:\.\d{3})+|\d*),\d*$/.test(texto)) {
+    normalizado = texto.replace(/\./g, '').replace(',', '.');
+  } else if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(texto)) {
+    return null;
   }
-  // Já é numérico (aceita ponto como decimal, sem vírgula de milhar)?
-  var direto = Number(semMoeda);
-  if (isFinite(direto)) return direto;
-  // Formato BR: "R$ 1.234,56" → 1234.56
-  var limpo = semMoeda.replace(/\./g, '').replace(/,/g, '.');
-  var n = Number(limpo);
-  return isFinite(n) ? n : 0;
+  var n = Number(normalizado);
+  return isFinite(n) ? n : null;
+}
+
+function parseNumeroGs(v) {
+  var n = parseNumeroOpcionalGs(v);
+  return n === null ? 0 : n;
+}
+
+function arredondarDinheiroGs(n) {
+  return Math.round((n + Number.EPSILON * Math.max(1, Math.abs(n))) * 100) / 100;
+}
+
+/** Total, desconto em reais e entrada usam os mesmos centavos exibidos no PDF. */
+function totalComDescontoGs(total, tipo, desconto) {
+  total = arredondarDinheiroGs(total);
+  return arredondarDinheiroGs(Math.max(0, total - descontoValorGs(total, tipo, desconto)));
+}
+
+function aReceberAutomaticoGs(total, tipo, desconto, entrada) {
+  return arredondarDinheiroGs(Math.max(0,
+    totalComDescontoGs(total, tipo, desconto) - arredondarDinheiroGs(entrada)
+  ));
+}
+
+/** Manual válido diferente do cálculo; null mantém o saldo automático. */
+function aReceberManualGs(bruto, calculado) {
+  var n = parseNumeroOpcionalGs(bruto);
+  if (n === null || n < 0 || n > TETO_DINHEIRO) return null;
+  // Compara ANTES de arredondar. Saldos automáticos antigos podiam guardar
+  // meio centavo (189.905); não devem virar ajustes manuais na migração.
+  var tolerancia = 0.005 + Number.EPSILON * Math.max(1, n, calculado);
+  if (Math.abs(n - calculado) <= tolerancia) return null;
+  return arredondarDinheiroGs(n);
 }
 
 function jsonSeguro(valor, padrao) {
@@ -776,8 +818,8 @@ function identificador(valor, rotulo) {
 function numero(valor, minimo, maximo, rotulo) {
   // Aceita número puro OU formato brasileiro ("R$ 1.234,56"), para não dar erro
   // se alguém copiar/colar um valor com máscara no campo.
-  var n = parseNumeroGs(valor);
-  if (!isFinite(n) || n < minimo || n > maximo)
+  var n = parseNumeroOpcionalGs(valor);
+  if (n === null || n < minimo || n > maximo)
     throw new Error((rotulo || 'Número') + ' inválido.');
   return n;
 }
@@ -785,8 +827,7 @@ function numero(valor, minimo, maximo, rotulo) {
 /** Valor do desconto em reais sobre o total (aceita % ou valor fixo R$). */
 function descontoValorGs(total, tipo, valor) {
   if (valor <= 0) return 0;
-  if (tipo === 'fixo') return Math.min(valor, total);
-  return total * (valor / 100);
+  return arredondarDinheiroGs(tipo === 'fixo' ? Math.min(valor, total) : total * (valor / 100));
 }
 
 function lista(valor, maximo, rotulo) {
@@ -855,10 +896,11 @@ function limparVoucher(v) {
   var criadoEm = texto(v.criadoEm || agora(), 40, true, 'Data de criação');
   if (isNaN(new Date(criadoEm).getTime())) criadoEm = agora();
 
-  var total = numero(v.total || 0, 0, 100000000, 'Valor total');
-  var entrada = numero(v.entrada || 0, 0, total, 'Valor da entrada');
+  var total = arredondarDinheiroGs(numero(v.total || 0, 0, TETO_DINHEIRO, 'Valor total'));
+  var entrada = arredondarDinheiroGs(numero(v.entrada || 0, 0, total, 'Valor da entrada'));
   var tipoDesconto = v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual';
-  var desconto = numero(v.desconto || 0, 0, 100000000, 'Desconto');
+  var desconto = numero(v.desconto || 0, 0, TETO_DINHEIRO, 'Desconto');
+  if (tipoDesconto === 'fixo') desconto = arredondarDinheiroGs(desconto);
   if (desconto > 0 && tipoDesconto === 'percentual' && desconto > 100)
     throw new Error('Desconto percentual não pode passar de 100%.');
   // "A receber" manual: presente apenas quando o painel definiu um valor
@@ -866,7 +908,7 @@ function limparVoucher(v) {
   // cálculo automático (total − desconto − entrada) na hora de gravar.
   var aReceberManual = null;
   if (v.aReceber !== undefined && v.aReceber !== null)
-    aReceberManual = numero(v.aReceber, 0, 100000000, 'Valor a receber');
+    aReceberManual = arredondarDinheiroGs(numero(v.aReceber, 0, TETO_DINHEIRO, 'Valor a receber'));
 
   return {
     id: identificador(v.id, 'Voucher'),
@@ -921,31 +963,17 @@ function limparConfig(config) {
 
 function lerVouchers() {
   return ultimosPorId(registros('Vouchers')).map(function (v) {
-    var total = dinheiroFolha(v.total);
-    var entrada = dinheiroFolha(v.entrada);
+    var total = arredondarDinheiroGs(dinheiroFolha(v.total));
+    var entrada = arredondarDinheiroGs(dinheiroFolha(v.entrada));
     var desconto = dinheiroFolha(v.desconto);
     var pessoas = Math.max(1, Math.round(parseNumeroGs(v.pessoas))) || 1;
-    // Se a entrada ficou maior que o total (edição manual na planilha ou
-    // dado legado), eleva o total para não deixar o PDF com "R$ 0,00" no
-    // total/a receber enquanto a entrada aparece com valor.
     if (entrada > total) total = entrada;
     var tipoDesconto = tipoDescontoEfetivoGs(v.tipoDesconto, desconto);
-    var calculado = Math.max(0, total - entrada - descontoValorGs(total, tipoDesconto, desconto));
-    // Valor digitado/ajustado à mão na coluna "aReceber" da planilha: se ele
-    // difere do cálculo automático, é um valor negociado e segue para o
-    // painel/PDF como está — antes era ignorado (o site sempre recalculava)
-    // e sobrescrito na primeira gravação, dando a impressão de que a
-    // planilha "não era respeitada".
-    // Célula que virou DATA por engano (ex.: "1349.1" digitado com ponto, que
-    // o Sheets pode converter sozinho) NÃO é valor digitado: volta pro auto.
-    var bruto = ehData(v.aReceber) ? '' : (v.aReceber === null || v.aReceber === undefined ? '' : String(v.aReceber).trim());
-    var aReceberLido = bruto ? Math.max(0, parseNumeroGs(bruto)) : null;
-    // Acima do teto NÃO é valor negociado: é lixo de versão antiga/digitação
-    // (ex.: "10.000.000.000.000.000" no lugar de 1000) e volta a valer o
-    // cálculo automático — era isso que fazia o painel somar quatrilhões em
-    // vez dos pendentes da planilha.
-    var aReceberFolha = aReceberLido !== null && aReceberLido <= TETO_DINHEIRO ? aReceberLido : null;
-    var temManual = aReceberFolha !== null && Math.abs(aReceberFolha - calculado) > 0.005;
+    if (tipoDesconto === 'fixo') desconto = arredondarDinheiroGs(desconto);
+    var calculado = aReceberAutomaticoGs(total, tipoDesconto, desconto, entrada);
+    // Preserva o tipo original. String(189.905) seria confundido com milhar.
+    // Vazio, texto inválido, data, negativo e valor acima do teto usam o cálculo.
+    var manual = aReceberManualGs(v.aReceber, calculado);
     var saida = {
       id: v.id,
       codigo: v.codigo,
@@ -966,7 +994,7 @@ function lerVouchers() {
       status: STATUS_VALIDOS.indexOf(v.status) !== -1 ? v.status : 'pendente',
       criadoEm: v.criadoEm
     };
-    if (temManual) saida.aReceber = aReceberFolha;
+    if (manual !== null) saida.aReceber = manual;
     return saida;
   });
 }
@@ -982,7 +1010,7 @@ function salvarVoucher(entrada) {
   var aReceberColuna =
     v.aReceber !== undefined && v.aReceber !== null
       ? v.aReceber
-      : Math.max(0, v.total - v.entrada - descontoValorGs(v.total, v.tipoDesconto, v.desconto));
+      : aReceberAutomaticoGs(v.total, v.tipoDesconto, v.desconto, v.entrada);
 
   gravar('Vouchers', {
     id: v.id,

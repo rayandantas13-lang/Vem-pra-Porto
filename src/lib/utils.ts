@@ -346,104 +346,81 @@ export const ordenarPorPeriodo = (lista: Voucher[], periodo: PeriodoVoucher, h =
 };
 
 /**
- * Converte um valor vindo do banco/planilha/campo em número de forma defensiva:
- * - aceita número direto ("300", "600.5") — tentado ANTES do tratamento BR,
- *   senão "600.5" (ponto decimal) seria lido como "6005";
- * - aceita formato brasileiro ("1.234,56" → 1234.56, "600,50" → 600.5),
- *   com ponto de milhar e vírgula decimal;
- * - ignora prefixos como "R$ ";
- * - se ainda não der número, devolve 0 em vez de NaN.
- * Antes o `Number(v.total) || 0` transformava "R$ 300,00" (digitado direto na
- * planilha) em NaN → 0, e o PDF saía com total e a receber "zerados" enquanto
- * a entrada continuava certa (pois entrada não teve formatação manual).
+ * Lê números nativos e textos em formato BR ou decimal com ponto.
+ * null significa ausente/inválido, NÃO zero: um aReceber vazio ou corrompido
+ * precisa voltar ao automático, sem marcar o voucher como quitado.
+ * Números nativos nunca passam pela regra de milhar (189.905 ≠ "189.905").
+ * Manter equivalente a parseNumeroOpcionalGs no Apps Script.
  */
-export function parseNumero(v: unknown): number {
-  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-  if (v === null || v === undefined) return 0;
-  const str = String(v).trim();
-  if (!str) return 0;
-  const semMoeda = str.replace(/^R\$\s?/i, "").trim();
-  if (!semMoeda) return 0;
-  // Sem vírgula e com pontos separando grupos de 3 dígitos ("1.200",
-  // "12.345.678"): em dinheiro no padrão BR isso é milhar, não decimal —
-  // Number("1.200") devolveria 1.2 e o valor digitado viraria R$ 1,20.
-  if (/^\d{1,3}(\.\d{3})+$/.test(semMoeda)) {
-    const milhar = Number(semMoeda.replace(/\./g, ""));
-    return Number.isFinite(milhar) ? milhar : 0;
+export function parseNumeroOpcional(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const texto = v.trim().replace(/^R\$\s*/i, "").trim();
+  if (!texto) return null;
+
+  let normalizado = texto;
+  if (/^[+-]?\d{1,3}(\.\d{3})+$/.test(texto)) {
+    normalizado = texto.replace(/\./g, "");
+  } else if (/^[+-]?(?:\d{1,3}(?:\.\d{3})+|\d*),\d*$/.test(texto)) {
+    normalizado = texto.replace(/\./g, "").replace(",", ".");
+  } else if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(texto)) {
+    return null;
   }
-  // Formato direto ("300", "600.5"): se já for número válido, não mexe mais.
-  const direto = Number(semMoeda);
-  if (Number.isFinite(direto)) return direto;
-  // Formato BR: tira ponto de milhar e troca vírgula decimal por ponto.
-  const limpo = semMoeda.replace(/\./g, "").replace(/,/g, ".");
-  const n = Number(limpo);
-  return Number.isFinite(n) ? n : 0;
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Teto de sanidade para valores em reais — o mesmo da validação e da leitura
- * do Apps Script. Qualquer coisa acima disso vinda da planilha é lixo de
- * versão antiga/digitação errada (ex.: "10.000.000.000.000.000" na coluna
- * aReceber, no lugar de 1000), nunca um valor negociado de verdade.
- */
+/** Campos obrigatórios mantêm o padrão 0 quando estão vazios. */
+export const parseNumero = (v: unknown): number => parseNumeroOpcional(v) ?? 0;
+
+/** Mesmo teto da validação do Apps Script; acima dele o dado é inválido. */
 export const LIMITE_VALOR = 100_000_000;
 
-/**
- * Converte e prende um valor de dinheiro entre 0 e o teto; NaN/lixo vira 0.
- * É o `parseNumero` com trava de sanidade para uso em totais e exibições.
- */
-export const dinheiroValido = (v: unknown) => {
-  const n = parseNumero(v);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(n, LIMITE_VALOR);
-};
+/** Converte e prende um valor entre 0 e o teto. Não arredonda percentuais. */
+export const dinheiroValido = (v: unknown) =>
+  Math.min(Math.max(0, parseNumero(v)), LIMITE_VALOR);
+
+/** Arredondamento em centavos, compensando resíduos binários (ex.: 1.005). */
+export const arredondarDinheiro = (n: number) =>
+  Math.round((n + Number.EPSILON * Math.max(1, Math.abs(n))) * 100) / 100;
 
 /**
  * Tipo do desconto considerado nos cálculos — igual ao Apps Script.
- * 'fixo' explícito é respeitado; acima de 100 sem marcação não pode ser
- * porcentagem válida (o form/a validação nunca deixam >100%): é um valor em
- * R$ digitado na planilha (ex.: "249.1") e conta como fixo, senão o
- * "a receber" ia a zero/errado.
+ * Acima de 100, o desconto legado é tratado como R$ em vez de porcentagem
+ * inválida. O formulário normalizado deve mostrar o mesmo tipo do cálculo.
  */
 export const tipoDescontoEfetivo = (v: Voucher): "percentual" | "fixo" => {
   if (v.tipoDesconto === "fixo") return "fixo";
   return dinheiroValido(v.desconto) > 100 ? "fixo" : "percentual";
 };
 
-/** Valor do desconto em reais sobre o total. Aceita desconto em % ou valor fixo (R$). */
+/** O desconto em reais é arredondado ANTES de subtrair, como exibido no PDF. */
 export const valorDesconto = (v: Voucher) => {
-  const total = dinheiroValido(v.total);
+  const total = arredondarDinheiro(dinheiroValido(v.total));
   const valor = dinheiroValido(v.desconto);
   if (valor <= 0) return 0;
-  if (tipoDescontoEfetivo(v) === "fixo") return Math.min(valor, total);
-  // percentual
-  return total * (valor / 100);
+  return arredondarDinheiro(
+    tipoDescontoEfetivo(v) === "fixo" ? Math.min(valor, total) : total * (valor / 100),
+  );
 };
 
-/** Total já com o desconto aplicado (nunca negativo). */
+/** Total já com o desconto aplicado, em centavos e nunca negativo. */
 export const totalComDesconto = (v: Voucher) =>
-  Math.max(0, dinheiroValido(v.total) - valorDesconto(v));
+  arredondarDinheiro(Math.max(0, arredondarDinheiro(dinheiroValido(v.total)) - valorDesconto(v)));
 
-/**
- * Valor a receber do voucher.
- * Se existir um valor MANUAL (digitado no formulário ou na coluna "aReceber"
- * da planilha — inclusive 0), ele vale mais que o cálculo automático: é o
- * caso de valores negociados que não fecham em "total − desconto − entrada".
- * Sem valor manual, calcula: total com desconto − entrada (nunca negativo).
- * Um "manual" ACIMA do teto é lixo da planilha (ex.: 10.000.000.000.000.000)
- * e volta para o cálculo — era o que deixava o "a receber" do painel absurdo
- * em vez da soma real dos pendentes.
- */
-export const aReceber = (v: Voucher) => {
-  if (
-    typeof v.aReceber === "number" &&
-    Number.isFinite(v.aReceber) &&
-    v.aReceber >= 0 &&
-    v.aReceber <= LIMITE_VALOR
-  )
-    return Math.max(0, v.aReceber);
-  return Math.max(0, totalComDesconto(v) - dinheiroValido(v.entrada));
-};
+/** Uma única regra para o saldo automático no formulário, painel e PDF. */
+export const aReceberAutomatico = (v: Voucher) =>
+  arredondarDinheiro(
+    Math.max(0, totalComDesconto(v) - arredondarDinheiro(dinheiroValido(v.entrada))),
+  );
+
+function aReceberManualValido(valor: unknown): number | undefined {
+  const n = parseNumeroOpcional(valor);
+  return n === null || n < 0 || n > LIMITE_VALOR ? undefined : arredondarDinheiro(n);
+}
+
+/** Ajustes manuais válidos (inclusive zero) prevalecem; inválidos usam o cálculo. */
+export const aReceber = (v: Voucher) => aReceberManualValido(v.aReceber) ?? aReceberAutomatico(v);
 
 export const totalPessoas = (v: Voucher) =>
   Math.max(1, Math.round(parseNumero(v.pessoas))) ||
@@ -468,19 +445,14 @@ export function normalizarVoucher(v: Voucher): Voucher {
     Math.round(parseNumero(v.pessoas)) || clientes.filter((n) => n?.trim()).length || 1,
   );
 
-  let total = dinheiroValido(v.total);
-  const entrada = dinheiroValido(v.entrada);
-  const desconto = dinheiroValido(v.desconto);
-  // "A receber" manual (digitado na planilha ou no formulário) é preservado;
-  // se vier como texto ("200", "R$ 200,00") é convertido para número.
-  // Ausente/null = automático (o cálculo acontece na função aReceber).
-  // Acima do teto é lixo da planilha — descartado para voltar o automático.
-  const aReceberLido =
-    v.aReceber === undefined || v.aReceber === null
-      ? undefined
-      : Math.max(0, parseNumero(v.aReceber));
-  const aReceberManual =
-    aReceberLido === undefined || aReceberLido > LIMITE_VALOR ? undefined : aReceberLido;
+  let total = arredondarDinheiro(dinheiroValido(v.total));
+  const entrada = arredondarDinheiro(dinheiroValido(v.entrada));
+  const tipoDesconto = tipoDescontoEfetivo(v);
+  const desconto = tipoDesconto === "fixo"
+    ? arredondarDinheiro(dinheiroValido(v.desconto))
+    : dinheiroValido(v.desconto);
+  // Não confundir vazio, data, negativo ou lixo com um zero manual legítimo.
+  const aReceberManual = aReceberManualValido(v.aReceber);
 
   // Calcula o total com desconto e garante que ele não fique abaixo da entrada.
   // Vouchers antigos/planilha poderiam ter entrada > total (ex.: total=0 por dado
@@ -499,7 +471,7 @@ export function normalizarVoucher(v: Voucher): Voucher {
     entrada,
     desconto,
     aReceber: aReceberManual,
-    tipoDesconto: v.tipoDesconto === "fixo" ? "fixo" : "percentual",
+    tipoDesconto,
     status: normalizarStatus(v.status),
   };
 }

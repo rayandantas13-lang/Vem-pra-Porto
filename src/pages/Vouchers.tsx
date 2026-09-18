@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import {
   aReceber,
+  aReceberAutomatico,
   abrirLinkWhatsApp,
   brl,
   dataBR,
@@ -1085,7 +1086,7 @@ export default function Vouchers() {
                   form.aReceber === undefined || form.aReceber === null
                     ? "automático: total − desconto − entrada (digite para ajustar)"
                     : `valor manual — pelo cálculo seria ${brl(
-                        Math.max(0, totalComDesconto(form) - parseNumero(form.entrada)),
+                        aReceberAutomatico(form),
                       )}`
                 }
               >
