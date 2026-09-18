@@ -26,7 +26,7 @@ const HOST_CONTEUDO = "script.googleusercontent.com";
  * isso que fazia o desconto sumir depois de atualizar a página. Nesse caso o
  * painel avisa em vez de deixar o usuário perder dados sem perceber.
  */
-export const VERSAO_ESPERADA = 14;
+export const VERSAO_ESPERADA = 15;
 
 /** true quando a implantação publicada é anterior à esperada por este site. */
 export function versaoDesatualizada(versao: unknown) {
@@ -42,8 +42,10 @@ export const AVISO_IMPLANTACAO_ANTIGA =
   "texto), devolve o formato automático às colunas que estavam aparecendo como " +
   "DATA, corrige sozinha valores absurdos na coluna aReceber (lixo antigo tipo " +
   "10.000.000.000.000.000, que volta para o cálculo total − desconto − " +
-  "entrada) e remove linhas duplicadas. Abra o Apps Script, cole o Code.gs " +
-  "mais recente e use Implantar → Gerenciar implantações → ✏️ → Versão: Nova " +
+  "entrada), ignora células de dinheiro que viraram data por engano (número " +
+  "digitado com ponto), trata desconto acima de 100 sem tipo como valor em R$ " +
+  "e remove linhas duplicadas. Abra o Apps Script, cole o Code.gs mais " +
+  "recente e use Implantar → Gerenciar implantações → ✏️ → Versão: Nova " +
   "versão.";
 
 /** Ações que podem ser repetidas sem risco de duplicar dados na planilha. */

@@ -47,6 +47,23 @@ function dinheiroFolha(v) {
   return n > TETO_DINHEIRO ? TETO_DINHEIRO : n;
 }
 
+/** true quando a célula é uma DATA de verdade (digitada ou auto-convertida). */
+function ehData(v) {
+  return Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime());
+}
+
+/**
+ * Tipo do desconto lido da planilha. 'fixo' explícito é respeitado; quando o
+ * valor passa de 100 SEM marcação, não pode ser porcentagem (a validação
+ * nunca deixaria salvar desconto >100%): a pessoa digitou um valor em R$ e
+ * ele é tratado como fixo — senão um desconto "249.1" virava 249% e o
+ * "a receber" ia a zero/errado.
+ */
+function tipoDescontoEfetivoGs(tipoBruto, desconto) {
+  if (tipoBruto === 'fixo') return 'fixo';
+  return desconto > 100 ? 'fixo' : 'percentual';
+}
+
 var SEGURANCA = {
   // Enviada ao painel em todas as respostas. Quando o número aqui for menor
   // que o esperado pelo site, o painel avisa que a implantação está velha.
@@ -86,7 +103,14 @@ var SEGURANCA = {
   //      Automático (estavam exibindo o valor como DATA), linhas duplicadas
   //      com o mesmo id são removidas (fica a mais recente) e um "aReceber"
   //      absurdo vira o cálculo automático (total − desconto − entrada).
-  versao: '14',
+  // v15: célula de dinheiro que o Sheets converteu para DATA por engano
+  //      (número digitado com ponto, ex.: "1349.1" — em pt-BR o decimal é
+  //      vírgula) deixa de ser lida como 0/"pago": na coluna aReceber ela
+  //      é ignorada e volta o cálculo automático, e o reparo regrava o
+  //      automático no lugar. Desconto digitado sem tipo e acima de 100
+  //      (ex.: "249.1") passa a ser tratado como R$ fixo — percentual >100
+  //      é dado inválido e antes derrubava o "a receber".
+  versao: '15',
   tamanhoMaximoRequisicao: 300000,
   // A sessão vive 10 dias no servidor e é renovada automaticamente quando o
   // painel é aberto a partir da metade do prazo (5 dias).
@@ -463,7 +487,14 @@ function valorCelula(v) {
 }
 
 function lerCelula(v) {
-  var valor = v === null || v === undefined ? '' : String(v);
+  if (v === null || v === undefined) return '';
+  // Datas passam intactas: as leituras de dinheiro precisam reconhecer uma
+  // célula que virou DATA por engano (ex.: número digitado com ponto, tipo
+  // "1349.1", que o Sheets em pt-BR pode converter para data) para ignorá-la
+  // em vez de lê-la como zero. Na gravação nada muda: o app nunca escreve
+  // datas nessas colunas e String(data) continua disponível onde precisa.
+  if (ehData(v)) return v;
+  var valor = String(v);
   return /^'[=+\-@]/.test(valor) ? valor.slice(1) : valor;
 }
 
@@ -647,15 +678,17 @@ function repararLinhaVoucher(linha, cols) {
     pos[col] = i;
   });
 
-  var tipo = String(linha[pos.tipoDesconto]) === 'fixo' ? 'fixo' : 'percentual';
+  var desconto = dinheiroFolha(linha[pos.desconto]);
+  var tipo = tipoDescontoEfetivoGs(String(linha[pos.tipoDesconto]), desconto);
   var total = dinheiroFolha(linha[pos.total]);
   var entrada = dinheiroFolha(linha[pos.entrada]);
-  var desconto = dinheiroFolha(linha[pos.desconto]);
   if (entrada > total) total = entrada;
   var calculado = Math.max(0, total - entrada - descontoValorGs(total, tipo, desconto));
 
   var bruto = linha[pos.aReceber];
-  var temDigitado = bruto !== '' && bruto !== null && bruto !== undefined;
+  // Célula vazia OU virada em data por engano ("1349.1" com ponto) não é
+  // valor digitado: volta para o cálculo automático em vez de gravar 0.
+  var temDigitado = bruto !== '' && bruto !== null && bruto !== undefined && !ehData(bruto);
   var manual = temDigitado ? parseNumeroGs(bruto) : NaN;
   var aReceberNovo =
     temDigitado && isFinite(manual) && manual >= 0 && manual <= TETO_DINHEIRO
@@ -896,14 +929,16 @@ function lerVouchers() {
     // dado legado), eleva o total para não deixar o PDF com "R$ 0,00" no
     // total/a receber enquanto a entrada aparece com valor.
     if (entrada > total) total = entrada;
-    var tipoDesconto = v.tipoDesconto === 'fixo' ? 'fixo' : 'percentual';
+    var tipoDesconto = tipoDescontoEfetivoGs(v.tipoDesconto, desconto);
     var calculado = Math.max(0, total - entrada - descontoValorGs(total, tipoDesconto, desconto));
     // Valor digitado/ajustado à mão na coluna "aReceber" da planilha: se ele
     // difere do cálculo automático, é um valor negociado e segue para o
     // painel/PDF como está — antes era ignorado (o site sempre recalculava)
     // e sobrescrito na primeira gravação, dando a impressão de que a
     // planilha "não era respeitada".
-    var bruto = v.aReceber === null || v.aReceber === undefined ? '' : String(v.aReceber).trim();
+    // Célula que virou DATA por engano (ex.: "1349.1" digitado com ponto, que
+    // o Sheets pode converter sozinho) NÃO é valor digitado: volta pro auto.
+    var bruto = ehData(v.aReceber) ? '' : (v.aReceber === null || v.aReceber === undefined ? '' : String(v.aReceber).trim());
     var aReceberLido = bruto ? Math.max(0, parseNumeroGs(bruto)) : null;
     // Acima do teto NÃO é valor negociado: é lixo de versão antiga/digitação
     // (ex.: "10.000.000.000.000.000" no lugar de 1000) e volta a valer o

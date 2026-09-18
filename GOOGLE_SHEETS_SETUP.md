@@ -93,6 +93,11 @@ Para refazer essa limpeza a qualquer momento sem reimplantar, execute a função
 
 Enquanto o script não é reimplantado, o site já se protege sozinho: valores absurdos vindos da planilha são ignorados na exibição e o "a receber" volta a mostrar o cálculo automático — mas a planilha só é realmente corrigida com a reimplantação.
 
+#### Sobre digitar valores na planilha (v15)
+
+- **Decimais: prefira a vírgula** (`1349,1`). Número digitado **com ponto** (`1349.1`) pode virar **data** debaixo dos seus olhos — é o Google Sheets em português convertendo sozinho. Quando isso acontece numa coluna de dinheiro, o sistema passa a ignorar a célula (em vez de ler como zero) e usa o cálculo automático; o reparo grava o valor automático no lugar.
+- **Desconto digitado na planilha:** se o valor passa de 100 e a coluna `tipoDesconto` está vazia, ele é entendido como **valor em R$** (ex.: `249.1` vira desconto de R$ 249,10), porque desconto percentual acima de 100% não existe. Para porcentagem, escreva `percentual` na coluna `tipoDesconto`; para reais, escreva `fixo`.
+
 ### Onde colar a URL
 
 **Opção A — variável do GitHub (recomendada)**

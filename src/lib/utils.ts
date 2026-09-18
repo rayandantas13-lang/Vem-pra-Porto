@@ -398,12 +398,24 @@ export const dinheiroValido = (v: unknown) => {
   return Math.min(n, LIMITE_VALOR);
 };
 
+/**
+ * Tipo do desconto considerado nos cálculos — igual ao Apps Script.
+ * 'fixo' explícito é respeitado; acima de 100 sem marcação não pode ser
+ * porcentagem válida (o form/a validação nunca deixam >100%): é um valor em
+ * R$ digitado na planilha (ex.: "249.1") e conta como fixo, senão o
+ * "a receber" ia a zero/errado.
+ */
+export const tipoDescontoEfetivo = (v: Voucher): "percentual" | "fixo" => {
+  if (v.tipoDesconto === "fixo") return "fixo";
+  return dinheiroValido(v.desconto) > 100 ? "fixo" : "percentual";
+};
+
 /** Valor do desconto em reais sobre o total. Aceita desconto em % ou valor fixo (R$). */
 export const valorDesconto = (v: Voucher) => {
   const total = dinheiroValido(v.total);
   const valor = dinheiroValido(v.desconto);
   if (valor <= 0) return 0;
-  if (v.tipoDesconto === "fixo") return Math.min(valor, total);
+  if (tipoDescontoEfetivo(v) === "fixo") return Math.min(valor, total);
   // percentual
   return total * (valor / 100);
 };
