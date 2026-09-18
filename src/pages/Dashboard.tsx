@@ -93,9 +93,11 @@ export default function Dashboard({ ir }: { ir: (r: string) => void }) {
       pessoasHoje: doDia.reduce((s, e) => s + totalPessoas(e.v), 0),
       receitaMes: doMes.reduce((s, v) => s + totalComDesconto(v), 0),
       gastosMes: gastos.filter((g) => g.data.startsWith(mes)).reduce((s, g) => s + g.valor, 0),
-      // Saldo a receber de TODOS os vouchers não cancelados: um passeio já
-      // realizado (concluído) ainda pode ter valor em aberto com o cliente.
-      aReceberTotal: ativos.reduce((s, v) => s + aReceber(v), 0),
+      // Só vouchers PENDENTES entram no saldo a receber: concluído significa
+      // que o valor já foi recebido e o cancelado sai da conta.
+      aReceberTotal: vouchers
+        .filter((v) => v.status === "pendente")
+        .reduce((s, v) => s + aReceber(v), 0),
       pendentes: vouchers.filter((v) => v.status === "pendente").length,
       totalMes: doMes.length,
     };
