@@ -122,7 +122,8 @@ const novoVoucher = (): Voucher => ({
   contatoExtra: "",
   passeios: [passeioVazio()],
   total: 0,
-  tipoDesconto: "percentual",
+  // Desconto padrão em R$ (valor fixo); o % continua disponível no seletor.
+  tipoDesconto: "fixo",
   desconto: 0,
   entrada: 0,
   formaPagamento: "",
@@ -1038,8 +1039,8 @@ export default function Vouchers() {
                   )}
                 </div>
               </Campo>
-              {/* Desconto: padrão é percentual (%), dá para trocar para valor
-                  fixo em R$ no seletor ao lado do número. */}
+              {/* Desconto: padrão é valor fixo em R$; dá para trocar para
+                  percentual (%) no seletor ao lado do número. */}
               <Campo
                 rotulo="Desconto"
                 dica={
@@ -1057,7 +1058,7 @@ export default function Vouchers() {
               >
                 <div className="flex gap-2">
                   <Selecao
-                    value={form.tipoDesconto ?? "percentual"}
+                    value={form.tipoDesconto ?? "fixo"}
                     onChange={(e) => set({ tipoDesconto: e.target.value as "percentual" | "fixo" })}
                     aria-label="Tipo do desconto: percentual (%) ou valor fixo (R$)"
                     className="w-[76px] shrink-0 text-center"
